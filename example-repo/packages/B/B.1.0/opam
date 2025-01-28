@@ -1,0 +1,6 @@
+opam-version: "2.0"
+name: "B"
+version: "1"
+depends: [
+  "D" {< "3"}
+]
