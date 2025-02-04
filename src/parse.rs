@@ -1,10 +1,12 @@
 use crate::index::Index;
+use crate::opam_version::OpamVersion;
 use serde::Deserialize;
 use std::error::Error;
 use std::fs;
 use std::ops::{Bound, RangeBounds};
 use std::ops::{Bound::Excluded, Bound::Included, Bound::Unbounded};
 use walkdir::WalkDir;
+use pubgrub::version::Version;
 
 #[derive(Debug, Deserialize)]
 pub struct OpamJson {
@@ -34,22 +36,22 @@ pub struct ConditionJson {
 
 #[derive(Debug)]
 struct SimpleRange {
-    start: Bound<u32>,
-    end: Bound<u32>,
+    start: Bound<OpamVersion>,
+    end: Bound<OpamVersion>,
 }
 
-impl RangeBounds<u32> for SimpleRange {
-    fn start_bound(&self) -> Bound<&u32> {
+impl RangeBounds<OpamVersion> for SimpleRange {
+    fn start_bound(&self) -> Bound<&OpamVersion> {
         match &self.start {
-            Included(x) => Included(x),
-            Excluded(x) => Excluded(x),
+            Included(x) => Included(&x),
+            Excluded(x) => Excluded(&x),
             Unbounded => Unbounded,
         }
     }
-    fn end_bound(&self) -> Bound<&u32> {
+    fn end_bound(&self) -> Bound<&OpamVersion> {
         match &self.end {
-            Included(x) => Included(x),
-            Excluded(x) => Excluded(x),
+            Included(x) => Included(&x),
+            Excluded(x) => Excluded(&x),
             Unbounded => Unbounded,
         }
     }
@@ -58,12 +60,12 @@ impl RangeBounds<u32> for SimpleRange {
 fn condition_to_simple_range(cond: &ConditionJson) -> Option<SimpleRange> {
     let relop = cond.relop.as_deref()?;
     let arg_str = cond.arg.as_deref()?;
-    let val = arg_str.parse::<u32>().ok()?;
+    let val = arg_str.parse::<OpamVersion>().ok()?;
 
     match relop {
         "eq" => Some(SimpleRange {
-            start: Included(val),
-            end: Excluded(val + 1),
+            start: Included(val.clone()),
+            end: Excluded(val.bump()),
         }),
         "geq" => Some(SimpleRange {
             start: Included(val),
@@ -107,9 +109,7 @@ pub fn parse_repo(repo_path: &str) -> Result<Index, Box<dyn Error>> {
             let content = fs::read_to_string(entry.path())?;
             let opam_data: OpamJson = serde_json::from_str(&content)?;
 
-            // TODO proper versions
-            // https://opam.ocaml.org/doc/Manual.html#Version-ordering
-            let pkg_version = opam_data.version.parse::<u32>()?;
+            let pkg_version = opam_data.version.parse::<OpamVersion>()?;
 
             let mut deps_array = Vec::new();
             if let Some(depends_list) = &opam_data.depends {

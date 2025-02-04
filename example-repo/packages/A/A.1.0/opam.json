@@ -1,9 +1,15 @@
 {
   "depends": [
-    { "val": "B", "conditions": [ { "prefix_relop": "eq", "arg": "1" } ] },
-    { "val": "C", "conditions": [ { "prefix_relop": "eq", "arg": "1" } ] }
+    {
+      "val": "B",
+      "conditions": [ { "prefix_relop": "eq", "arg": "1.0.0" } ]
+    },
+    {
+      "val": "C",
+      "conditions": [ { "prefix_relop": "eq", "arg": "1.0.0" } ]
+    }
   ],
-  "version": "1",
+  "version": "1.0.0",
   "name": "A",
   "opam-version": "2.0"
 }

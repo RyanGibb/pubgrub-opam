@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let pkg = Package::from_str("A").unwrap();
     let sol: SelectedDependencies<Package, OpamVersion> =
-        match pubgrub::solver::resolve(&index, pkg, 1) {
+        match pubgrub::solver::resolve(&index, pkg, "1".parse::<OpamVersion>().unwrap()) {
             Ok(sol) => sol,
             Err(PubGrubError::NoSolution(mut derivation_tree)) => {
                 derivation_tree.collapse_no_versions();
