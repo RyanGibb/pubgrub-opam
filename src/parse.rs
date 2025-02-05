@@ -145,7 +145,7 @@ pub fn parse_package_formula(formula: &OpamPackageFormula) -> PackageFormula {
                 conditions
                     .iter()
                     .map(|cond| parse_version_formula(cond))
-                    .fold(Range::any(), |acc, r| acc.union(&r))
+                    .fold(Range::none(), |acc, r| acc.union(&r))
             };
             PackageFormula::Base {
                 name: name.clone(),
