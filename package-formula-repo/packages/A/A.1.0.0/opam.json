@@ -9,12 +9,8 @@
             "conditions": [ { "prefix_relop": "gt", "arg": "1.0.0" } ]
           },
           "rhs": {
-            "group": [
-              {
-                "val": "C",
-                "conditions": [ { "prefix_relop": "lt", "arg": "1.4.0" } ]
-              }
-            ]
+            "val": "C",
+            "conditions": [ { "prefix_relop": "lt", "arg": "1.4.0" } ]
           }
         }
       ]

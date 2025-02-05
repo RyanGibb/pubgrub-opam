@@ -3,6 +3,7 @@ use pubgrub::report::{DefaultStringReporter, Reporter};
 use pubgrub::solver::Dependencies;
 use pubgrub::solver::DependencyProvider;
 use pubgrub::type_aliases::SelectedDependencies;
+use pubgrub_opam::index::Index;
 use pubgrub_opam::opam_deps::Package;
 use pubgrub_opam::opam_version::OpamVersion;
 use pubgrub_opam::parse::parse_repo;
@@ -44,8 +45,12 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<
             Err(err) => panic!("{:?}", err),
         };
 
-    let mut resolved_graph: HashMap<_, Vec<_>> = HashMap::new();
-    for (package, version) in &sol {
+    fn get_resolved_deps<'a>(
+        index: &'a Index,
+        sol: &'a SelectedDependencies<Package, OpamVersion>,
+        package: Package,
+        version: &'a OpamVersion,
+    ) -> Vec<(String, &'a OpamVersion)> {
         let dependencies = index.get_dependencies(&package, &version);
         match dependencies {
             Ok(Dependencies::Known(constraints)) => {
@@ -59,19 +64,28 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<
                     let solved_version = sol.get(&dep_package).unwrap();
                     match dep_package {
                         Package::Base(name) => dependents.push((name, solved_version)),
-                        _ => {}
+                        Package::Lor { lhs : _, rhs : _ } =>
+                            dependents.extend(get_resolved_deps(&index, sol, dep_package, solved_version)),
                     };
                 }
-                match package {
-                    Package::Base(name) => {
-                        resolved_graph.insert((name.clone(), version), dependents);
-                    }
-                    _ => {}
-                }
+                dependents
             }
             _ => {
                 println!("No available dependencies for package {}", package);
+                Vec::new()
             }
+        }
+    }
+
+    let mut resolved_graph: HashMap<(String, &OpamVersion), Vec<(String, &OpamVersion)>> =
+        HashMap::new();
+    for (package, version) in &sol {
+        match package {
+            Package::Base(name) => {
+                let deps = get_resolved_deps(&index, &sol, package.clone(), version);
+                resolved_graph.insert((name.clone(), version), deps);
+            }
+            _ => {}
         }
     }
 
@@ -109,46 +123,64 @@ mod tests {
 
     #[test]
     fn test_package_formulas_a100() -> Result<(), Box<dyn Error>> {
-      solve_repo(
-          Package::from_str("A").unwrap(),
-          "1.0.0".parse::<OpamVersion>().unwrap(),
-          "./package-formula-repo/packages",
-      )
+        solve_repo(
+            Package::from_str("A").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./package-formula-repo/packages",
+        )
     }
 
     #[test]
     fn test_package_formulas_a110() -> Result<(), Box<dyn Error>> {
-      solve_repo(
-          Package::from_str("A").unwrap(),
-          "1.1.0".parse::<OpamVersion>().unwrap(),
-          "./package-formula-repo/packages",
-      )
+        solve_repo(
+            Package::from_str("A").unwrap(),
+            "1.1.0".parse::<OpamVersion>().unwrap(),
+            "./package-formula-repo/packages",
+        )
+    }
+
+    #[test]
+    fn test_package_formulas_a120() -> Result<(), Box<dyn Error>> {
+        solve_repo(
+            Package::from_str("A").unwrap(),
+            "1.2.0".parse::<OpamVersion>().unwrap(),
+            "./package-formula-repo/packages",
+        )
+    }
+
+    #[test]
+    fn test_package_formulas_a130() -> Result<(), Box<dyn Error>> {
+        solve_repo(
+            Package::from_str("A").unwrap(),
+            "1.3.0".parse::<OpamVersion>().unwrap(),
+            "./package-formula-repo/packages",
+        )
     }
 
     #[test]
     fn test_package_formulas_a200() -> Result<(), Box<dyn Error>> {
-      solve_repo(
-          Package::from_str("A").unwrap(),
-          "2.0.0".parse::<OpamVersion>().unwrap(),
-          "./package-formula-repo/packages",
-      )
+        solve_repo(
+            Package::from_str("A").unwrap(),
+            "2.0.0".parse::<OpamVersion>().unwrap(),
+            "./package-formula-repo/packages",
+        )
     }
 
     #[test]
     fn test_package_formulas_a210() -> Result<(), Box<dyn Error>> {
-      solve_repo(
-          Package::from_str("A").unwrap(),
-          "2.1.0".parse::<OpamVersion>().unwrap(),
-          "./package-formula-repo/packages",
-      )
+        solve_repo(
+            Package::from_str("A").unwrap(),
+            "2.1.0".parse::<OpamVersion>().unwrap(),
+            "./package-formula-repo/packages",
+        )
     }
 
     #[test]
     fn test_package_formulas_a300() -> Result<(), Box<dyn Error>> {
-      solve_repo(
-          Package::from_str("A").unwrap(),
-          "3.0.0".parse::<OpamVersion>().unwrap(),
-          "./package-formula-repo/packages",
-      )
+        solve_repo(
+            Package::from_str("A").unwrap(),
+            "3.0.0".parse::<OpamVersion>().unwrap(),
+            "./package-formula-repo/packages",
+        )
     }
 }

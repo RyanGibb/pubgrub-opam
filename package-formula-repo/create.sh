@@ -1,35 +1,49 @@
 #!/usr/bin/env bash
 
-mkdir -p packages
+DIR="$(dirname "$0")"
+mkdir -p $DIR/packages
 
 create_opam_file() {
     local pkg=$1
     local ver=$2
     local content=$3
-    local dir="packages/${pkg}/${pkg}.${ver}"
+    local dir="$DIR/packages/${pkg}/${pkg}.${ver}"
     mkdir -p "$dir"
     echo "$content" > "$dir/opam"
 }
 
-# A 1.0.0: Uses a ">" operator in a condition.
 create_opam_file "A" "1.0.0" 'opam-version: "2.0"
 name: "A"
 version: "1.0.0"
 depends: [
-  ("B" {> "1.0.0"} & ("C" {< "1.4.0"}))
+  ("B" {> "1.0.0"} & "C" {< "1.4.0"})
 ]
 '
 
-# A 1.1.0: Mixes AND, OR and grouping.
 create_opam_file "A" "1.1.0" 'opam-version: "2.0"
 name: "A"
 version: "1.1.0"
 depends: [
-  ( ("B" {>= "1.0.0"} & ("E" {!= "1.0.0"}) ) | ("C") ) & ( ("D" {<= "2.1.0"}) | ("E") )
+  ("B" {> "1.0.0"} | "C" {< "1.4.0"})
 ]
 '
 
-# A 2.0.0: Uses both ">" and "<" in the same dependency.
+create_opam_file "A" "1.2.0" 'opam-version: "2.0"
+name: "A"
+version: "1.2.0"
+depends: [
+  ("B" {> "5.0.0"} | "C" {< "1.4.0"})
+]
+'
+
+create_opam_file "A" "1.3.0" 'opam-version: "2.0"
+name: "A"
+version: "1.3.0"
+depends: [
+  ("C" {< "1.4.0"} | "B" {> "1.0.0"})
+]
+'
+
 create_opam_file "A" "2.0.0" 'opam-version: "2.0"
 name: "A"
 version: "2.0.0"
@@ -38,7 +52,6 @@ depends: [
 ]
 '
 
-# A 2.1.0: Uses a mix of conjunction and disjunction.
 create_opam_file "A" "2.1.0" 'opam-version: "2.0"
 name: "A"
 version: "2.1.0"
@@ -47,7 +60,6 @@ depends: [
 ]
 '
 
-# A 3.0.0: Complex formula with nested groups and negation.
 create_opam_file "A" "3.0.0" 'opam-version: "2.0"
 name: "A"
 version: "3.0.0"
@@ -56,7 +68,6 @@ depends: [
 ]
 '
 
-# B 1.0.0
 create_opam_file "B" "1.0.0" 'opam-version: "2.0"
 name: "B"
 version: "1.0.0"
@@ -65,7 +76,6 @@ depends: [
 ]
 '
 
-# B 1.2.0
 create_opam_file "B" "1.2.0" 'opam-version: "2.0"
 name: "B"
 version: "1.2.0"
@@ -74,7 +84,6 @@ depends: [
 ]
 '
 
-# B 2.0.0
 create_opam_file "B" "2.0.0" 'opam-version: "2.0"
 name: "B"
 version: "2.0.0"
@@ -83,14 +92,12 @@ depends: [
 ]
 '
 
-# C 1.0.0
 create_opam_file "C" "1.0.0" 'opam-version: "2.0"
 name: "C"
 version: "1.0.0"
 depends: []
 '
 
-# C 1.5.0
 create_opam_file "C" "1.5.0" 'opam-version: "2.0"
 name: "C"
 version: "1.5.0"
