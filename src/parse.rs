@@ -40,8 +40,6 @@ pub enum OpamPackageFormula {
         #[serde(default)]
         conditions: Vec<OpamVersionFormula>,
     },
-    /// A bare string is interpreted as a simple package with no conditions.
-    Plain(String),
     /// A binary formula using a logical operator.
     /// Expects keys: "logop", "lhs", "rhs"
     Binary {
@@ -52,6 +50,8 @@ pub enum OpamPackageFormula {
     /// A grouped formula.
     /// Expects a key "group" with an array of formulas.
     Group { group: Vec<OpamPackageFormula> },
+    /// A bare string is interpreted as a simple package with no conditions.
+    Plain(String),
 }
 
 /// Version formulas constrain the acceptable versions for a package.
@@ -80,18 +80,11 @@ pub enum OpamVersionFormula {
     Not {
         #[serde(rename = "pfxop")]
         op: String, // currently only "not" is supported
-        arg: Box<OpamVersionFormulaOrGroup>,
+        arg: Box<OpamVersionFormula>,
     },
     /// A grouped version formula.
     /// For example:
     /// { "group": [ { ... }, { ... } ] }
-    Group { group: Vec<OpamVersionFormula> },
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-#[serde(untagged)]
-pub enum OpamVersionFormulaOrGroup {
-    Formula(Box<OpamVersionFormula>),
     Group { group: Vec<OpamVersionFormula> },
 }
 
@@ -129,12 +122,7 @@ fn parse_version_formula(formula: &OpamVersionFormula) -> Range<OpamVersion> {
             if op.to_lowercase() != "not" {
                 panic!("Expected NOT operator, got: {}", op);
             }
-            let inner = match **arg {
-                OpamVersionFormulaOrGroup::Group { ref group } => parse_version_formula(&group[0]),
-                OpamVersionFormulaOrGroup::Formula(ref boxed_formula) => {
-                    parse_version_formula(boxed_formula)
-                }
-            };
+            let inner = parse_version_formula(*&arg);
             inner.negate()
         }
         OpamVersionFormula::Group { group } => {
@@ -164,13 +152,6 @@ pub fn parse_package_formula(formula: &OpamPackageFormula) -> PackageFormula {
                 range: HashedRange(combined_range),
             }
         }
-        // If it's a bare string, treat it as a simple dependency with no conditions.
-        OpamPackageFormula::Plain(s) => {
-            PackageFormula::Base {
-                name: s.clone(),
-                range: HashedRange(Range::any()),
-            }
-        },
         // For a binary formula, recursively convert the left- and right-hand sides.
         OpamPackageFormula::Binary { logop, lhs, rhs } => {
             let lhs_conv = parse_package_formula(lhs);
@@ -191,6 +172,13 @@ pub fn parse_package_formula(formula: &OpamPackageFormula) -> PackageFormula {
                 parse_package_formula(&group[0])
             }
         }
+        OpamPackageFormula::Plain(s) => {
+            PackageFormula::Base {
+                name: s.clone(),
+                range: HashedRange(Range::any()),
+            }
+        }
+
     }
 }
 
@@ -201,6 +189,7 @@ pub fn parse_repo(repo_path: &str) -> Result<Index, Box<dyn Error>> {
     let mut index = Index::new();
     for entry in WalkDir::new(repo_path).into_iter().filter_map(Result::ok) {
         if entry.file_type().is_file() && entry.file_name() == "opam.json" {
+            println!("Parsing file: {}", entry.path().display());
             let content = fs::read_to_string(entry.path())?;
             let opam_data: OpamJson = serde_json::from_str(&content)?;
 

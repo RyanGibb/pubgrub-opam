@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::str::FromStr;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let index = parse_repo("./example-repo/packages")?;
+fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<dyn Error>> {
+    let index = parse_repo(repo)?;
 
     println!("Created index with {} packages:", index.packages.len());
 
@@ -33,9 +33,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let pkg = Package::from_str("A").unwrap();
     let sol: SelectedDependencies<Package, OpamVersion> =
-        match pubgrub::solver::resolve(&index, pkg, "1.0.0".parse::<OpamVersion>().unwrap()) {
+        match pubgrub::solver::resolve(&index, pkg, version) {
             Ok(sol) => sol,
             Err(PubGrubError::NoSolution(mut derivation_tree)) => {
                 derivation_tree.collapse_no_versions();
@@ -59,16 +58,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                 for (dep_package, _dep_versions) in constraints {
                     let solved_version = sol.get(&dep_package).unwrap();
                     match dep_package {
-                        Package::Base(name) => {
-                            dependents.push((name, solved_version))
-                        },
+                        Package::Base(name) => dependents.push((name, solved_version)),
                         _ => {}
                     };
                 }
                 match package {
                     Package::Base(name) => {
                         resolved_graph.insert((name.clone(), version), dependents);
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -96,4 +93,26 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    solve_repo(
+        Package::from_str("A").unwrap(),
+        "1.0.0".parse::<OpamVersion>().unwrap(),
+        "./example-repo/packages",
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_solve_dependencies_from_repo() -> Result<(), Box<dyn Error>> {
+      solve_repo(
+          Package::from_str("A").unwrap(),
+          "1.0.0".parse::<OpamVersion>().unwrap(),
+          "./package-formula-repo/packages",
+      )
+    }
 }

@@ -1,0 +1,40 @@
+{
+  "depends": [
+    {
+      "logop": "or",
+      "lhs": {
+        "group": [
+          {
+            "logop": "and",
+            "lhs": {
+              "val": "B",
+              "conditions": [ { "prefix_relop": "geq", "arg": "2.0.0" } ]
+            },
+            "rhs": {
+              "val": "C",
+              "conditions": [ { "prefix_relop": "geq", "arg": "1.5.0" } ]
+            }
+          }
+        ]
+      },
+      "rhs": {
+        "group": [
+          {
+            "logop": "and",
+            "lhs": {
+              "val": "D",
+              "conditions": [ { "prefix_relop": "geq", "arg": "2.0.0" } ]
+            },
+            "rhs": {
+              "val": "E",
+              "conditions": [ { "prefix_relop": "eq", "arg": "1.0.0" } ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "version": "3.0.0",
+  "name": "A",
+  "opam-version": "2.0"
+}

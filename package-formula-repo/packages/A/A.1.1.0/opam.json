@@ -1,0 +1,57 @@
+{
+  "depends": [
+    {
+      "logop": "and",
+      "lhs": {
+        "group": [
+          {
+            "logop": "or",
+            "lhs": {
+              "group": [
+                {
+                  "logop": "and",
+                  "lhs": {
+                    "val": "B",
+                    "conditions": [
+                      { "prefix_relop": "geq", "arg": "1.0.0" }
+                    ]
+                  },
+                  "rhs": {
+                    "group": [
+                      {
+                        "val": "E",
+                        "conditions": [
+                          { "prefix_relop": "neq", "arg": "1.0.0" }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "rhs": { "group": [ "C" ] }
+          }
+        ]
+      },
+      "rhs": {
+        "group": [
+          {
+            "logop": "or",
+            "lhs": {
+              "group": [
+                {
+                  "val": "D",
+                  "conditions": [ { "prefix_relop": "leq", "arg": "2.1.0" } ]
+                }
+              ]
+            },
+            "rhs": { "group": [ "E" ] }
+          }
+        ]
+      }
+    }
+  ],
+  "version": "1.1.0",
+  "name": "A",
+  "opam-version": "2.0"
+}

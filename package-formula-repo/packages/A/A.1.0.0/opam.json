@@ -1,0 +1,19 @@
+{
+  "depends": [
+    {
+      "group": [
+        {
+          "logop": "and",
+          "lhs": {
+            "val": "B",
+            "conditions": [ { "prefix_relop": "gt", "arg": "1.0.0" } ]
+          },
+          "rhs": { "group": [ "C" ] }
+        }
+      ]
+    }
+  ],
+  "version": "1.0.0",
+  "name": "A",
+  "opam-version": "2.0"
+}
