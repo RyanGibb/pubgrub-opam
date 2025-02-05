@@ -1,32 +1,100 @@
-use crate::index::Index;
+use crate::index::{Binary, HashedRange, Index, PackageFormula};
 use crate::opam_version::OpamVersion;
+use pubgrub::range::Range;
+use pubgrub::version::Version;
 use serde::Deserialize;
 use std::error::Error;
 use std::fs;
-use std::ops::{Bound, RangeBounds};
-use std::ops::{Bound::Excluded, Bound::Included, Bound::Unbounded};
 use walkdir::WalkDir;
-use pubgrub::version::Version;
 
+/// JSON Representation of a Package File
 #[derive(Debug, Deserialize)]
 pub struct OpamJson {
     #[serde(rename = "opam-version")]
     pub opam_version: Option<String>,
     pub name: String,
     pub version: String,
-    pub depends: Option<Vec<OpamDependencyJson>>,
+    // Now the "depends" field is a vector of package formulas.
+    pub depends: Option<Vec<OpamPackageFormula>>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct OpamDependencyJson {
-    pub val: String,
-    pub conditions: Vec<ConditionJson>,
+/// Logical operators used in both package and version formulas.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogicalOp {
+    And,
+    Or,
 }
 
-// a single version formula (e.g. `{"prefix_relop":"eq","arg":"1"}`)
-// TODO package formula and recursive version formula
-// https://opam.ocaml.org/doc/Manual.html#Package-Formulas
-// this might get complicated
+/// Package formulas express requirements on installed packages.
+/// They can be a simple package (with optional version constraints),
+/// a binary formula using a logical operator, or a group of formulas.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
+pub enum OpamPackageFormula {
+    /// A simple package dependency given as an object, e.g.:
+    /// { "val": "B", "conditions": [ ... ] }
+    Simple {
+        #[serde(rename = "val")]
+        name: String,
+        #[serde(default)]
+        conditions: Vec<OpamVersionFormula>,
+    },
+    /// A bare string is interpreted as a simple package with no conditions.
+    Plain(String),
+    /// A binary formula using a logical operator.
+    /// Expects keys: "logop", "lhs", "rhs"
+    Binary {
+        logop: LogicalOp,
+        lhs: Box<OpamPackageFormula>,
+        rhs: Box<OpamPackageFormula>,
+    },
+    /// A grouped formula.
+    /// Expects a key "group" with an array of formulas.
+    Group { group: Vec<OpamPackageFormula> },
+}
+
+/// Version formulas constrain the acceptable versions for a package.
+/// They support basic constraints, binary combinations, negation, and grouping.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
+pub enum OpamVersionFormula {
+    /// A basic version constraint, for example:
+    /// { "prefix_relop": "geq", "arg": "1.0.0" }
+    Constraint {
+        #[serde(rename = "prefix_relop")]
+        relop: String,
+        arg: String,
+    },
+    /// A binary combination of version formulas.
+    /// For example:
+    /// { "logop": "and", "lhs": { ... }, "rhs": { ... } }
+    Binary {
+        logop: LogicalOp,
+        lhs: Box<OpamVersionFormula>,
+        rhs: Box<OpamVersionFormula>,
+    },
+    /// A negation of a version formula.
+    /// For example:
+    /// { "pfxop": "not", "arg": <version formula or group> }
+    Not {
+        #[serde(rename = "pfxop")]
+        op: String, // currently only "not" is supported
+        arg: Box<OpamVersionFormulaOrGroup>,
+    },
+    /// A grouped version formula.
+    /// For example:
+    /// { "group": [ { ... }, { ... } ] }
+    Group { group: Vec<OpamVersionFormula> },
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
+pub enum OpamVersionFormulaOrGroup {
+    Formula(Box<OpamVersionFormula>),
+    Group { group: Vec<OpamVersionFormula> },
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ConditionJson {
     #[serde(rename = "prefix_relop")]
@@ -34,74 +102,101 @@ pub struct ConditionJson {
     pub arg: Option<String>,
 }
 
-#[derive(Debug)]
-struct SimpleRange {
-    start: Bound<OpamVersion>,
-    end: Bound<OpamVersion>,
-}
-
-impl RangeBounds<OpamVersion> for SimpleRange {
-    fn start_bound(&self) -> Bound<&OpamVersion> {
-        match &self.start {
-            Included(x) => Included(&x),
-            Excluded(x) => Excluded(&x),
-            Unbounded => Unbounded,
+fn parse_version_formula(formula: &OpamVersionFormula) -> Range<OpamVersion> {
+    match formula {
+        OpamVersionFormula::Constraint { relop, arg } => {
+            let val = arg.parse::<OpamVersion>().unwrap();
+            let range = match relop.as_str() {
+                "eq" => Range::<OpamVersion>::exact(val),
+                "geq" => Range::<OpamVersion>::higher_than(val),
+                "gt" => Range::<OpamVersion>::higher_than(val.bump()),
+                "lt" => Range::<OpamVersion>::strictly_lower_than(val),
+                "leq" => Range::<OpamVersion>::strictly_lower_than(val.bump()),
+                "neq" => Range::<OpamVersion>::exact(val).negate(),
+                _ => panic!("Unknown operator: {}", relop),
+            };
+            range
+        }
+        OpamVersionFormula::Binary { logop, lhs, rhs } => {
+            let left = parse_version_formula(lhs);
+            let right = parse_version_formula(rhs);
+            match logop {
+                LogicalOp::And => left.union(&right),
+                LogicalOp::Or => left.intersection(&right),
+            }
+        }
+        OpamVersionFormula::Not { op, arg } => {
+            if op.to_lowercase() != "not" {
+                panic!("Expected NOT operator, got: {}", op);
+            }
+            let inner = match **arg {
+                OpamVersionFormulaOrGroup::Group { ref group } => parse_version_formula(&group[0]),
+                OpamVersionFormulaOrGroup::Formula(ref boxed_formula) => {
+                    parse_version_formula(boxed_formula)
+                }
+            };
+            inner.negate()
+        }
+        OpamVersionFormula::Group { group } => {
+            if group.is_empty() {
+                panic!("Empty group");
+            } else {
+                parse_version_formula(&group[0])
+            }
         }
     }
-    fn end_bound(&self) -> Bound<&OpamVersion> {
-        match &self.end {
-            Included(x) => Included(&x),
-            Excluded(x) => Excluded(&x),
-            Unbounded => Unbounded,
+}
+
+pub fn parse_package_formula(formula: &OpamPackageFormula) -> PackageFormula {
+    match formula {
+        OpamPackageFormula::Simple { name, conditions } => {
+            let combined_range = if conditions.is_empty() {
+                Range::any()
+            } else {
+                // Combine all conditions with AND by union-ing them together.
+                conditions
+                    .iter()
+                    .map(|cond| parse_version_formula(cond))
+                    .fold(Range::any(), |acc, r| acc.union(&r))
+            };
+            PackageFormula::Base {
+                name: name.clone(),
+                range: HashedRange(combined_range),
+            }
+        }
+        // If it's a bare string, treat it as a simple dependency with no conditions.
+        OpamPackageFormula::Plain(s) => {
+            PackageFormula::Base {
+                name: s.clone(),
+                range: HashedRange(Range::any()),
+            }
+        },
+        // For a binary formula, recursively convert the left- and right-hand sides.
+        OpamPackageFormula::Binary { logop, lhs, rhs } => {
+            let lhs_conv = parse_package_formula(lhs);
+            let rhs_conv = parse_package_formula(rhs);
+            let binary = Binary {
+                lhs: Box::new(lhs_conv),
+                rhs: Box::new(rhs_conv),
+            };
+            match logop {
+                LogicalOp::And => PackageFormula::And(binary),
+                LogicalOp::Or => PackageFormula::Or(binary),
+            }
+        }
+        OpamPackageFormula::Group { group } => {
+            if group.is_empty() {
+                panic!("Empty group");
+            } else {
+                parse_package_formula(&group[0])
+            }
         }
     }
 }
 
-fn condition_to_simple_range(cond: &ConditionJson) -> Option<SimpleRange> {
-    let relop = cond.relop.as_deref()?;
-    let arg_str = cond.arg.as_deref()?;
-    let val = arg_str.parse::<OpamVersion>().ok()?;
-
-    match relop {
-        "eq" => Some(SimpleRange {
-            start: Included(val.clone()),
-            end: Excluded(val.bump()),
-        }),
-        "geq" => Some(SimpleRange {
-            start: Included(val),
-            end: Unbounded,
-        }),
-        "gt" => Some(SimpleRange {
-            start: Excluded(val),
-            end: Unbounded,
-        }),
-        "leq" => Some(SimpleRange {
-            start: Unbounded,
-            end: Included(val),
-        }),
-        "lt" => Some(SimpleRange {
-            start: Unbounded,
-            end: Excluded(val),
-        }),
-        // TODO neq
-        _ => None,
-    }
-}
-
-fn dependency_bounds(dep: &OpamDependencyJson) -> SimpleRange {
-    let mut result = SimpleRange {
-        start: Unbounded,
-        end: Unbounded,
-    };
-    for cond in &dep.conditions {
-        if let Some(range) = condition_to_simple_range(cond) {
-            // TODO combine conditions
-            result = range;
-        }
-    }
-    result
-}
-
+/// Parse the repository by walking the directory tree.
+/// For each "opam.json" file we parse the package information,
+/// including its version and dependency formulas.
 pub fn parse_repo(repo_path: &str) -> Result<Index, Box<dyn Error>> {
     let mut index = Index::new();
     for entry in WalkDir::new(repo_path).into_iter().filter_map(Result::ok) {
@@ -111,15 +206,15 @@ pub fn parse_repo(repo_path: &str) -> Result<Index, Box<dyn Error>> {
 
             let pkg_version = opam_data.version.parse::<OpamVersion>()?;
 
-            let mut deps_array = Vec::new();
-            if let Some(depends_list) = &opam_data.depends {
-                for dep in depends_list {
-                    let dep_name = dep.val.as_str();
-                    let rng = dependency_bounds(dep);
-                    deps_array.push((dep_name, rng));
-                }
+            if let Some(formulas) = opam_data.depends {
+                let depends = formulas
+                    .into_iter()
+                    .map(|pf| parse_package_formula(&pf))
+                    .collect();
+                index.add_deps(&opam_data.name, pkg_version, depends);
+            } else {
+                index.add_deps(&opam_data.name, pkg_version, Vec::new());
             }
-            index.add_deps(&opam_data.name, pkg_version, &deps_array);
         }
     }
     Ok(index)

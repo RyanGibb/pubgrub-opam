@@ -4,7 +4,7 @@ use std::str::FromStr;
 use pubgrub::version::Version;
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, serde::Serialize, serde::Deserialize)]
-pub struct OpamVersion(String);
+pub struct OpamVersion(pub String);
 
 impl OpamVersion {
     /// Split the version string into tokens.

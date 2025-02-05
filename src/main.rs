@@ -22,11 +22,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 print!(" -> ")
             }
             let mut first = true;
-            for (dep_name, dep_version) in dependents {
+            for formula in dependents {
                 if !first {
                     print!(", ");
                 }
-                print!("({}, {})", dep_name, dep_version);
+                print!("{}", formula);
                 first = false;
             }
             println!()
@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let pkg = Package::from_str("A").unwrap();
     let sol: SelectedDependencies<Package, OpamVersion> =
-        match pubgrub::solver::resolve(&index, pkg, "1".parse::<OpamVersion>().unwrap()) {
+        match pubgrub::solver::resolve(&index, pkg, "1.0.0".parse::<OpamVersion>().unwrap()) {
             Ok(sol) => sol,
             Err(PubGrubError::NoSolution(mut derivation_tree)) => {
                 derivation_tree.collapse_no_versions();
@@ -58,15 +58,18 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let mut dependents = Vec::new();
                 for (dep_package, _dep_versions) in constraints {
                     let solved_version = sol.get(&dep_package).unwrap();
-                    let dep_name = match dep_package {
-                        Package::Base(name) => name,
+                    match dep_package {
+                        Package::Base(name) => {
+                            dependents.push((name, solved_version))
+                        },
+                        _ => {}
                     };
-                    dependents.push((dep_name, solved_version));
                 }
                 match package {
                     Package::Base(name) => {
                         resolved_graph.insert((name.clone(), version), dependents);
-                    }
+                    },
+                    _ => {}
                 }
             }
             _ => {

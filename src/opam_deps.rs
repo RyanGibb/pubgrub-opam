@@ -1,25 +1,20 @@
-// SPDX-License-Identifier: MPL-2.0
-// https://github.com/pubgrub-rs/advanced_dependency_providers/
-
-use crate::index::{Deps, Index};
+use crate::index::{Binary, Index, PackageFormula};
 use crate::opam_version::OpamVersion;
 use core::borrow::Borrow;
 use core::fmt::Display;
+use std::sync::LazyLock;
 use pubgrub::range::Range;
 use pubgrub::solver::{Dependencies, DependencyConstraints, DependencyProvider};
 use std::str::FromStr;
+use pubgrub::type_aliases::Map;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Package {
     Base(String),
-}
-
-impl Package {
-    fn base_pkg(&self) -> &String {
-        match self {
-            Package::Base(pkg) => pkg,
-        }
-    }
+    Lor{
+        lhs: Box<PackageFormula>,
+        rhs: Box<PackageFormula>,
+    },
 }
 
 impl FromStr for Package {
@@ -37,13 +32,23 @@ impl Display for Package {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Package::Base(pkg) => write!(f, "{}", pkg),
+            Package::Lor { lhs, rhs } => write!(f, "({} | {})", lhs, rhs),
         }
     }
 }
 
+static LHS_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("lhs".to_string()));
+static RHS_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("rhs".to_string()));
+
 impl Index {
-    pub fn list_versions(&self, package: &Package) -> impl Iterator<Item = &OpamVersion> {
-        self.available_versions(package.base_pkg())
+    pub fn list_versions(&self, package: &Package) -> Box<dyn Iterator<Item = &OpamVersion> + '_> {
+        match package {
+            Package::Base(pkg) => Box::new(self.available_versions(pkg)),
+            Package::Lor { lhs : _, rhs : _} => {
+                let versions = vec![&*LHS_VERSION, &*RHS_VERSION];
+                Box::new(versions.into_iter())
+            },
+        }
     }
 }
 
@@ -63,25 +68,67 @@ impl DependencyProvider<Package, OpamVersion> for Index {
         package: &Package,
         version: &OpamVersion,
     ) -> Result<Dependencies<Package, OpamVersion>, Box<dyn std::error::Error>> {
-        let all_versions = match self.packages.get(package.base_pkg()) {
-            None => return Ok(Dependencies::Unknown),
-            Some(all_versions) => all_versions,
-        };
-        let deps = match all_versions.get(version) {
-            None => return Ok(Dependencies::Unknown),
-            Some(deps) => deps,
-        };
-
         match package {
-            Package::Base(_) => Ok(Dependencies::Known(from_deps(deps.clone()))),
+            Package::Base(pkg) => {
+                let all_versions = match self.packages.get(pkg) {
+                    None => return Ok(Dependencies::Unknown),
+                    Some(all_versions) => all_versions,
+                };
+                let deps = match all_versions.get(version) {
+                    None => return Ok(Dependencies::Unknown),
+                    Some(deps) => deps,
+                };
+                Ok(Dependencies::Known(from_formulas(deps)))
+            }
+            Package::Lor { lhs, rhs } => {
+                match version {
+                    OpamVersion(ver) => match ver.as_str() {
+                        "lhs" => Ok(Dependencies::Known(from_formula(*&lhs))),
+                        "rhs" => Ok(Dependencies::Known(from_formula(*&rhs))),
+                        _ => panic!("Unknown OR version {}", version),
+                    }
+                }
+            }
         }
     }
 }
 
-fn from_deps(deps: Deps) -> DependencyConstraints<Package, OpamVersion> {
-    deps.iter()
-        .map(|(base_pkg, dep)| {
-            (Package::Base(base_pkg.clone()), dep.clone())
-        })
-        .collect()
+pub fn from_formulas(formulas: &Vec<PackageFormula>) -> DependencyConstraints<Package, OpamVersion> {
+    formulas.iter()
+        .map(|formula| from_formula(formula))
+        .fold(Map::default(), |acc, cons| merge_constraints(acc, cons))
+}
+
+fn from_formula(formula: &PackageFormula) -> DependencyConstraints<Package, OpamVersion> {
+    match formula {
+        PackageFormula::Base { name, range } => {
+            let mut map = Map::default();
+            map.insert(Package::Base(name.to_string()), range.0.clone());
+            map
+        },
+        PackageFormula::Or(Binary { lhs, rhs }) => {
+            let mut map = Map::default();
+            map.insert(Package::Lor { lhs: lhs.clone(), rhs: rhs.clone() }, Range::any());
+            map
+        },
+        PackageFormula::And(Binary { lhs, rhs }) => {
+            let left = from_formula(lhs);
+            let right = from_formula(rhs);
+            merge_constraints(left, right)
+        },
+    }
+}
+
+fn merge_constraints(
+    mut left: DependencyConstraints<Package, OpamVersion>,
+    right: DependencyConstraints<Package, OpamVersion>,
+) -> DependencyConstraints<Package, OpamVersion> {
+    for (pkg, range) in right {
+        left.entry(pkg)
+            .and_modify(|existing| {
+                *existing = existing.union(&range);
+            })
+            .or_insert(range);
+    }
+    left
 }

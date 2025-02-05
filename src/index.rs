@@ -1,20 +1,65 @@
-use core::ops::{Bound, RangeBounds};
-use pubgrub::type_aliases::Map;
 use pubgrub::range::Range;
-use pubgrub::version::Version;
+use pubgrub::type_aliases::Map;
+use core::fmt::Display;
 use std::collections::BTreeMap;
+use std::hash::{Hash, Hasher};
 
 use crate::opam_version::OpamVersion;
 
 pub type PackageName = String;
 
 pub struct Index {
-    pub packages:
-        Map<PackageName, BTreeMap<OpamVersion, Deps>>,
+    pub packages: Map<PackageName, BTreeMap<OpamVersion, Vec<PackageFormula>>>,
 }
 
-pub type Deps = Map<PackageName, Range<OpamVersion>>;
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct Binary {
+    pub lhs: Box<PackageFormula>,
+    pub rhs: Box<PackageFormula>,
+}
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct HashedRange(pub Range<OpamVersion>);
+
+impl Hash for HashedRange {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let s = format!("{}", self.0);
+        s.hash(state);
+    }
+}
+
+impl Display for HashedRange {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Delegate to the Display implementation of the inner Range.
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum PackageFormula {
+    Or(Binary),
+    And(Binary),
+    Base {
+        name: PackageName,
+        range: HashedRange,
+    },
+}
+
+impl Display for PackageFormula {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PackageFormula::Base { name, range } => {
+                write!(f, "({}: {})", name, range)
+            }
+            PackageFormula::And(binary) => {
+                write!(f, "({} & {})", binary.lhs, binary.rhs)
+            }
+            PackageFormula::Or(binary) => {
+                write!(f, "({} | {})", binary.lhs, binary.rhs)
+            }
+        }
+    }
+}
 impl Index {
     /// Empty new index.
     pub fn new() -> Self {
@@ -33,35 +78,10 @@ impl Index {
     }
 
     /// Register a package and its mandatory dependencies in the index.
-    pub fn add_deps<R: RangeBounds<OpamVersion>>(
-        &mut self,
-        package: &str,
-        version: OpamVersion,
-        new_deps: &[(&str, R)],
-    ) {
-        let deps = self
-            .packages
+    pub fn add_deps(&mut self, package: &str, version: OpamVersion, formulas: Vec<PackageFormula>) {
+        self.packages
             .entry(package.to_string())
             .or_default()
-            .entry(version)
-            .or_default();
-        for (p, r) in new_deps {
-            deps.insert(String::from(*p), range_from_bounds(r));
-        }
-    }
-}
-
-/// Convert a range bounds into pubgrub Range type.
-pub fn range_from_bounds<R: RangeBounds<OpamVersion>>(bounds: &R) -> Range<OpamVersion> {
-    match (bounds.start_bound(), bounds.end_bound()) {
-        (Bound::Unbounded, Bound::Unbounded) => Range::any(),
-        (Bound::Unbounded, Bound::Excluded(end)) => Range::strictly_lower_than(end.clone()),
-        (Bound::Unbounded, Bound::Included(end)) => Range::strictly_lower_than(end.bump()),
-        (Bound::Included(start), Bound::Unbounded) => Range::higher_than(start.clone()),
-        (Bound::Included(start), Bound::Included(end)) => Range::between(start.clone(), end.bump()),
-        (Bound::Included(start), Bound::Excluded(end)) => Range::between(start.clone(), end.clone()),
-        (Bound::Excluded(start), Bound::Unbounded) => Range::higher_than(start.bump()),
-        (Bound::Excluded(start), Bound::Included(end)) => Range::between(start.bump(), end.bump()),
-        (Bound::Excluded(start), Bound::Excluded(end)) => Range::between(start.bump(), end.clone()),
+            .insert(version, formulas);
     }
 }
