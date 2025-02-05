@@ -108,10 +108,46 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_solve_dependencies_from_repo() -> Result<(), Box<dyn Error>> {
+    fn test_package_formulas_a100() -> Result<(), Box<dyn Error>> {
       solve_repo(
           Package::from_str("A").unwrap(),
           "1.0.0".parse::<OpamVersion>().unwrap(),
+          "./package-formula-repo/packages",
+      )
+    }
+
+    #[test]
+    fn test_package_formulas_a110() -> Result<(), Box<dyn Error>> {
+      solve_repo(
+          Package::from_str("A").unwrap(),
+          "1.1.0".parse::<OpamVersion>().unwrap(),
+          "./package-formula-repo/packages",
+      )
+    }
+
+    #[test]
+    fn test_package_formulas_a200() -> Result<(), Box<dyn Error>> {
+      solve_repo(
+          Package::from_str("A").unwrap(),
+          "2.0.0".parse::<OpamVersion>().unwrap(),
+          "./package-formula-repo/packages",
+      )
+    }
+
+    #[test]
+    fn test_package_formulas_a210() -> Result<(), Box<dyn Error>> {
+      solve_repo(
+          Package::from_str("A").unwrap(),
+          "2.1.0".parse::<OpamVersion>().unwrap(),
+          "./package-formula-repo/packages",
+      )
+    }
+
+    #[test]
+    fn test_package_formulas_a300() -> Result<(), Box<dyn Error>> {
+      solve_repo(
+          Package::from_str("A").unwrap(),
+          "3.0.0".parse::<OpamVersion>().unwrap(),
           "./package-formula-repo/packages",
       )
     }

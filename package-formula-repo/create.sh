@@ -16,7 +16,7 @@ create_opam_file "A" "1.0.0" 'opam-version: "2.0"
 name: "A"
 version: "1.0.0"
 depends: [
-  ("B" {> "1.0.0"} & ("C"))
+  ("B" {> "1.0.0"} & ("C" {< "1.4.0"}))
 ]
 '
 
