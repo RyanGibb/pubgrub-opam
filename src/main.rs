@@ -165,12 +165,14 @@ mod tests {
 
     // TODO implement variables
     #[test]
-    fn test_filtered_package_formula_variables() -> Result<(), Box<dyn Error>> {
-        solve_repo(
+    #[should_panic]
+    fn test_filtered_package_formula_variables() -> () {
+        let _ = solve_repo(
             Package::from_str("A").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
             "./filtered-package-formula-repo/packages",
-        )
+        );
+        ()
     }
 
     #[test]
