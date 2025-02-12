@@ -3,37 +3,44 @@
     {
       "logop": "and",
       "lhs": {
-        "val": "B",
-        "conditions": [ { "prefix_relop": "gt", "arg": "1.2.0" } ]
-      },
-      "rhs": {
-        "group": [
-          {
-            "logop": "or",
-            "lhs": "C",
-            "rhs": {
-              "group": [
-                {
-                  "val": "D",
-                  "conditions": [
-                    {
-                      "logop": "and",
-                      "lhs": { "prefix_relop": "eq", "arg": "2.0.0" },
-                      "rhs": {
-                        "pfxop": "not",
-                        "arg": {
-                          "group": [
-                            { "prefix_relop": "lt", "arg": "2.5.0" }
-                          ]
+        "logop": "and",
+        "lhs": {
+          "val": "B",
+          "conditions": [ { "prefix_relop": "gt", "arg": "1.2.0" } ]
+        },
+        "rhs": {
+          "group": [
+            {
+              "logop": "or",
+              "lhs": "C",
+              "rhs": {
+                "group": [
+                  {
+                    "val": "D",
+                    "conditions": [
+                      {
+                        "logop": "and",
+                        "lhs": { "prefix_relop": "eq", "arg": "2.0.0" },
+                        "rhs": {
+                          "pfxop": "not",
+                          "arg": {
+                            "group": [
+                              { "prefix_relop": "lt", "arg": "2.5.0" }
+                            ]
+                          }
                         }
                       }
-                    }
-                  ]
-                }
-              ]
+                    ]
+                  }
+                ]
+              }
             }
-          }
-        ]
+          ]
+        }
+      },
+      "rhs": {
+        "val": "D",
+        "conditions": [ { "prefix_relop": "eq", "arg": "1.0.0" } ]
       }
     }
   ],

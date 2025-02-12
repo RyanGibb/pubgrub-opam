@@ -48,7 +48,7 @@ create_opam_file "A" "2.0.0" 'opam-version: "2.0"
 name: "A"
 version: "2.0.0"
 depends: [
-  "B" {> "1.2.0"} & ( "C" | ( "D" {= "2.0.0" & ! (< "2.5.0")} ) )
+  "B" {> "1.2.0"} & ( "C" | ( "D" {= "2.0.0" & ! (< "2.5.0")} ) ) & "D" {= "1.0.0"}
 ]
 '
 
@@ -103,6 +103,14 @@ name: "C"
 version: "1.5.0"
 depends: [
   "E" {>= "1.0.0"}
+]
+'
+
+create_opam_file "D" "1.0.0" 'opam-version: "2.0"
+name: "D"
+version: "1.0.0"
+depends: [
+  "E" {>= "2.0.0"} | "C"
 ]
 '
 
