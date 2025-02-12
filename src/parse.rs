@@ -123,8 +123,8 @@ fn parse_version_formula(formula: &OpamVersionFormula) -> Range<OpamVersion> {
             let left = parse_version_formula(lhs);
             let right = parse_version_formula(rhs);
             match logop {
-                LogicalOp::And => left.union(&right),
-                LogicalOp::Or => left.intersection(&right),
+                LogicalOp::And => left.intersection(&right),
+                LogicalOp::Or => left.union(&right),
             }
         }
         OpamVersionFormula::Not { op, arg } => {
