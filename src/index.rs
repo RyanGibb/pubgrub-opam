@@ -1,15 +1,14 @@
 use pubgrub::range::Range;
-use pubgrub::type_aliases::Map;
 use core::fmt::Display;
-use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 
 use crate::opam_version::OpamVersion;
+use crate::parse::available_versions_from_repo;
 
 pub type PackageName = String;
 
 pub struct Index {
-    pub packages: Map<PackageName, BTreeMap<OpamVersion, Vec<PackageFormula>>>,
+    pub repo: String,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -60,28 +59,17 @@ impl Display for PackageFormula {
         }
     }
 }
+
 impl Index {
     /// Empty new index.
-    pub fn new() -> Self {
+    pub fn new(repo: String) -> Self {
         Self {
-            packages: Map::default(),
+            repo,
         }
     }
 
     /// List existing versions for a given package with newest versions first.
-    pub fn available_versions(&self, package: &PackageName) -> impl Iterator<Item = &OpamVersion> {
-        self.packages
-            .get(package)
-            .into_iter()
-            .flat_map(|k| k.keys())
-            .rev()
-    }
-
-    /// Register a package and its mandatory dependencies in the index.
-    pub fn add_deps(&mut self, package: &str, version: OpamVersion, formulas: Vec<PackageFormula>) {
-        self.packages
-            .entry(package.to_string())
-            .or_default()
-            .insert(version, formulas);
+    pub fn available_versions(&self, package: &PackageName) -> Vec<OpamVersion> {
+        available_versions_from_repo(self.repo.as_str(), package).unwrap()
     }
 }

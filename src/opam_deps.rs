@@ -1,5 +1,6 @@
 use crate::index::{Binary, Index, PackageFormula};
 use crate::opam_version::OpamVersion;
+use crate::parse::parse_dependencies_for_package_version;
 use core::borrow::Borrow;
 use core::fmt::Display;
 use std::sync::LazyLock;
@@ -41,12 +42,12 @@ static LHS_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("lhs".t
 static RHS_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("rhs".to_string()));
 
 impl Index {
-    pub fn list_versions(&self, package: &Package) -> Box<dyn Iterator<Item = &OpamVersion> + '_> {
+    pub fn list_versions(&self, package: &Package) -> Box<Vec<OpamVersion>> {
         match package {
             Package::Base(pkg) => Box::new(self.available_versions(pkg)),
             Package::Lor { lhs : _, rhs : _} => {
-                let versions = vec![&*LHS_VERSION, &*RHS_VERSION];
-                Box::new(versions.into_iter())
+                let versions = vec![LHS_VERSION.clone(), RHS_VERSION.clone()];
+                Box::new(versions)
             },
         }
     }
@@ -58,7 +59,7 @@ impl DependencyProvider<Package, OpamVersion> for Index {
         potential_packages: impl Iterator<Item = (T, U)>,
     ) -> Result<(T, Option<OpamVersion>), Box<dyn std::error::Error>> {
         Ok(pubgrub::solver::choose_package_with_fewest_versions(
-            |p| self.list_versions(p).cloned(),
+            |p| self.list_versions(p).into_iter(),
             potential_packages,
         ))
     }
@@ -70,15 +71,8 @@ impl DependencyProvider<Package, OpamVersion> for Index {
     ) -> Result<Dependencies<Package, OpamVersion>, Box<dyn std::error::Error>> {
         match package {
             Package::Base(pkg) => {
-                let all_versions = match self.packages.get(pkg) {
-                    None => return Ok(Dependencies::Unknown),
-                    Some(all_versions) => all_versions,
-                };
-                let deps = match all_versions.get(version) {
-                    None => return Ok(Dependencies::Unknown),
-                    Some(deps) => deps,
-                };
-                Ok(Dependencies::Known(from_formulas(deps)))
+                let deps = parse_dependencies_for_package_version(self.repo.as_str(), pkg, version.to_string().as_str()).unwrap();
+                Ok(Dependencies::Known(from_formulas(&deps)))
             }
             Package::Lor { lhs, rhs } => {
                 match version {

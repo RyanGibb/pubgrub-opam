@@ -1,19 +1,20 @@
-use crate::index::{Binary, HashedRange, Index, PackageFormula};
+use crate::index::{Binary, HashedRange, PackageFormula};
 use crate::opam_version::OpamVersion;
 use pubgrub::range::Range;
 use pubgrub::version::Version;
 use serde::Deserialize;
 use std::error::Error;
 use std::fs;
-use walkdir::WalkDir;
+use std::path::Path;
+use std::str::FromStr;
 
 /// JSON Representation of a Package File
 #[derive(Debug, Deserialize)]
 pub struct OpamJson {
     #[serde(rename = "opam-version")]
     pub opam_version: Option<String>,
-    pub name: String,
-    pub version: String,
+    pub name: Option<String>,
+    pub version: Option<String>,
     // Now the "depends" field is a vector of package formulas.
     pub depends: Option<Vec<OpamPackageFormula>>,
 }
@@ -199,29 +200,77 @@ pub fn parse_package_formula(formula: &OpamPackageFormula) -> PackageFormula {
     }
 }
 
-/// Parse the repository by walking the directory tree.
-/// For each "opam.json" file we parse the package information,
-/// including its version and dependency formulas.
-pub fn parse_repo(repo_path: &str) -> Result<Index, Box<dyn Error>> {
-    let mut index = Index::new();
-    for entry in WalkDir::new(repo_path).into_iter().filter_map(Result::ok) {
-        if entry.file_type().is_file() && entry.file_name() == "opam.json" {
-            println!("Parsing file: {}", entry.path().display());
-            let content = fs::read_to_string(entry.path())?;
-            let opam_data: OpamJson = serde_json::from_str(&content)?;
+/// Given a repository path and a package name, returns a vector of available versions
+/// for that package, in descending order (newest first).
+///
+/// The repository is assumed to have the following structure:
+///   repo_path/package-name/package-name.version/opam.json
+pub fn available_versions_from_repo(repo_path: &str, package: &str) -> Result<Vec<OpamVersion>, Box<dyn Error>> {
+    // Construct the package directory: repo_path/package
+    let pkg_dir = Path::new(repo_path).join(package);
+    if !pkg_dir.exists() {
+        return Err(format!("Package path {} does not exist", pkg_dir.display()).into());
+    }
 
-            let pkg_version = opam_data.version.parse::<OpamVersion>()?;
-
-            if let Some(formulas) = opam_data.depends {
-                let depends = formulas
-                    .into_iter()
-                    .map(|pf| parse_package_formula(&pf))
-                    .collect();
-                index.add_deps(&opam_data.name, pkg_version, depends);
+    let mut versions = Vec::new();
+    // Read the package directory: each subdirectory is assumed to be a version folder.
+    for entry in fs::read_dir(&pkg_dir)? {
+        let entry = entry?;
+        if entry.file_type()?.is_dir() {
+            // Get the directory name (e.g. "A.2.0.0")
+            let dir_name = entry.file_name();
+            let dir_str = dir_name.to_string_lossy();
+            // Assume the directory name starts with "package." and then the version.
+            let prefix = format!("{}.", package);
+            let ver_str = if dir_str.starts_with(&prefix) {
+                // Strip the package prefix and the dot.
+                &dir_str[prefix.len()..]
             } else {
-                index.add_deps(&opam_data.name, pkg_version, Vec::new());
-            }
+                // Fallback: try using the entire directory name.
+                &dir_str
+            };
+            // Parse the version string into an OpamVersion.
+            let version = OpamVersion::from_str(ver_str)?;
+            versions.push(version);
         }
     }
-    Ok(index)
+    // Sort the versions in ascending order and then reverse for descending order.
+    versions.sort();
+    versions.reverse();
+    Ok(versions)
+}
+
+/// Given a repository path, package name, and version,
+/// returns the dependency formulas for that package version.
+pub fn parse_dependencies_for_package_version(
+    repo_path: &str,
+    package: &str,
+    version: &str,
+) -> Result<Vec<PackageFormula>, Box<dyn Error>> {
+    // Build the expected directory path.
+    // For example:
+    //   repo_path/packages/A/A.2.0.0/opam.json
+    let pkg_dir = Path::new(repo_path)
+        .join(package)
+        .join(format!("{}.{}", package, version));
+    let opam_file = pkg_dir.join("opam.json");
+
+    // Read the opam file.
+    let content = fs::read_to_string(&opam_file)
+        .map_err(|e| format!("Failed to read {}: {}", opam_file.display(), e))?;
+
+    // Parse the JSON into an OpamJson struct.
+    let opam_data: OpamJson = serde_json::from_str(&content)
+        .map_err(|e| format!("Error parsing {}: {}\nContent:\n{}", opam_file.display(), e, content))?;
+
+    // Convert the dependency formulas, if any.
+    if let Some(formulas) = opam_data.depends {
+        let dependencies = formulas
+            .into_iter()
+            .map(|pf| parse_package_formula(&pf))
+            .collect();
+        Ok(dependencies)
+    } else {
+        Ok(Vec::new())
+    }
 }

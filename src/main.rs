@@ -6,33 +6,12 @@ use pubgrub::type_aliases::SelectedDependencies;
 use pubgrub_opam::index::Index;
 use pubgrub_opam::opam_deps::Package;
 use pubgrub_opam::opam_version::OpamVersion;
-use pubgrub_opam::parse::parse_repo;
 use std::collections::HashMap;
 use std::error::Error;
 use std::str::FromStr;
 
 fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<dyn Error>> {
-    let index = parse_repo(repo)?;
-
-    println!("Created index with {} packages:", index.packages.len());
-
-    for (name, version_map) in &index.packages {
-        for (version, dependents) in version_map {
-            print!("({}, {})", name, version);
-            if dependents.len() > 0 {
-                print!(" -> ")
-            }
-            let mut first = true;
-            for formula in dependents {
-                if !first {
-                    print!(", ");
-                }
-                print!("{}", formula);
-                first = false;
-            }
-            println!()
-        }
-    }
+    let index = Index::new(repo.to_string());
 
     let sol: SelectedDependencies<Package, OpamVersion> =
         match pubgrub::solver::resolve(&index, pkg, version) {
