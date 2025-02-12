@@ -183,4 +183,22 @@ mod tests {
             "./filtered-package-formula-repo/packages",
         )
     }
+
+    #[test]
+    fn test_filtered_package_formula_complex() -> Result<(), Box<dyn Error>> {
+        solve_repo(
+            Package::from_str("E").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./filtered-package-formula-repo/packages",
+        )
+    }
+
+    #[test]
+    fn test_opam_repository() -> Result<(), Box<dyn Error>> {
+        solve_repo(
+            Package::from_str("dune").unwrap(),
+            "3.17.2".parse::<OpamVersion>().unwrap(),
+            "./opam-repository/packages",
+        )
+    }
 }

@@ -43,8 +43,12 @@ static RHS_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("rhs".t
 
 impl Index {
     pub fn list_versions(&self, package: &Package) -> Box<Vec<OpamVersion>> {
+        // println!("list {}", package);
         match package {
-            Package::Base(pkg) => Box::new(self.available_versions(pkg)),
+            Package::Base(pkg) => {
+                // println!("\t{:?}", self.available_versions(pkg));
+                Box::new(self.available_versions(pkg))
+            },
             Package::Lor { lhs : _, rhs : _} => {
                 let versions = vec![LHS_VERSION.clone(), RHS_VERSION.clone()];
                 Box::new(versions)
@@ -71,7 +75,20 @@ impl DependencyProvider<Package, OpamVersion> for Index {
     ) -> Result<Dependencies<Package, OpamVersion>, Box<dyn std::error::Error>> {
         match package {
             Package::Base(pkg) => {
+                print!("({}, {})", package, version);
                 let deps = parse_dependencies_for_package_version(self.repo.as_str(), pkg, version.to_string().as_str()).unwrap();
+                if deps.len() > 0 {
+                    print!(" -> ")
+                }
+                let mut first = true;
+                for formula in deps.clone() {
+                    if !first {
+                        print!(", ");
+                    }
+                    print!("{}", formula);
+                    first = false;
+                }
+                println!();
                 Ok(Dependencies::Known(from_formulas(&deps)))
             }
             Package::Lor { lhs, rhs } => {
