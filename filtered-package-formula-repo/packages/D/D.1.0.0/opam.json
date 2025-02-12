@@ -1,0 +1,27 @@
+{
+  "depends": [
+    {
+      "val": "B",
+      "conditions": [
+        {
+          "logop": "and",
+          "lhs": { "prefix_relop": "eq", "arg": "1.0.0" },
+          "rhs": { "id": "test" }
+        }
+      ]
+    },
+    {
+      "val": "C",
+      "conditions": [
+        {
+          "logop": "and",
+          "lhs": { "prefix_relop": "eq", "arg": "1.0.0" },
+          "rhs": { "id": "build" }
+        }
+      ]
+    }
+  ],
+  "version": "1.0.0",
+  "name": "D",
+  "opam-version": "2.0"
+}

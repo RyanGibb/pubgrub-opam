@@ -64,7 +64,7 @@ pub enum OpamVersionFormula {
     Constraint {
         #[serde(rename = "prefix_relop")]
         relop: String,
-        arg: String,
+        arg: FilterExpr,
     },
     /// A binary combination of version formulas.
     /// For example:
@@ -86,26 +86,34 @@ pub enum OpamVersionFormula {
     /// For example:
     /// { "group": [ { ... }, { ... } ] }
     Group { group: Vec<OpamVersionFormula> },
+    Filter(FilterExpr),
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ConditionJson {
-    #[serde(rename = "prefix_relop")]
-    pub relop: Option<String>,
-    pub arg: Option<String>,
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
+pub enum FilterExpr {
+    /// An object of the form { "id": "version" } represents a variable.
+    Var { id: String },
+    /// A literal value (we assume it’s a string literal).
+    Lit(String),
 }
 
 fn parse_version_formula(formula: &OpamVersionFormula) -> Range<OpamVersion> {
     match formula {
         OpamVersionFormula::Constraint { relop, arg } => {
-            let val = arg.parse::<OpamVersion>().unwrap();
+            // TODO parse filter
+            let val = match arg {
+                FilterExpr::Var { id } => id,
+                FilterExpr::Lit(lit) => lit,
+            };
+            let version = val.parse::<OpamVersion>().unwrap();
             let range = match relop.as_str() {
-                "eq" => Range::<OpamVersion>::exact(val),
-                "geq" => Range::<OpamVersion>::higher_than(val),
-                "gt" => Range::<OpamVersion>::higher_than(val.bump()),
-                "lt" => Range::<OpamVersion>::strictly_lower_than(val),
-                "leq" => Range::<OpamVersion>::strictly_lower_than(val.bump()),
-                "neq" => Range::<OpamVersion>::exact(val).negate(),
+                "eq" => Range::<OpamVersion>::exact(version),
+                "geq" => Range::<OpamVersion>::higher_than(version),
+                "gt" => Range::<OpamVersion>::higher_than(version.bump()),
+                "lt" => Range::<OpamVersion>::strictly_lower_than(version),
+                "leq" => Range::<OpamVersion>::strictly_lower_than(version.bump()),
+                "neq" => Range::<OpamVersion>::exact(version).negate(),
                 _ => panic!("Unknown operator: {}", relop),
             };
             range
@@ -119,11 +127,17 @@ fn parse_version_formula(formula: &OpamVersionFormula) -> Range<OpamVersion> {
             }
         }
         OpamVersionFormula::Not { op, arg } => {
-            if op.to_lowercase() != "not" {
-                panic!("Expected NOT operator, got: {}", op);
+            match op.as_str() {
+                "not" => {
+                    let inner = parse_version_formula(*&arg);
+                    inner.negate()
+                },
+                // TODO
+                "defined" => {
+                    Range::any()
+                }
+                op => panic!("Unrecognised NOT operator {}", op)
             }
-            let inner = parse_version_formula(*&arg);
-            inner.negate()
         }
         OpamVersionFormula::Group { group } => {
             if group.is_empty() {
@@ -131,6 +145,9 @@ fn parse_version_formula(formula: &OpamVersionFormula) -> Range<OpamVersion> {
             } else {
                 parse_version_formula(&group[0])
             }
+        }
+        OpamVersionFormula::Filter(_filter_expr) => {
+            Range::any()
         }
     }
 }
