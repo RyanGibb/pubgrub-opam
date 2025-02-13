@@ -52,7 +52,8 @@ pub enum OpamPackageFormula {
 #[serde(rename_all = "lowercase")]
 pub enum UnaryOp {
     Not,
-    Defined,
+    // TODO implement logic for this is it's actually used anywhere
+    // Defined,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -97,8 +98,9 @@ pub enum FilterOrVersion {
 #[serde(untagged)]
 pub enum LiteralValue {
     Str(String),
-    Int(i64),
-    Bool(bool),
+    // TODO implement logic for these if they're actually used anywhere
+    // Int(i64),
+    // Bool(bool),
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -174,10 +176,6 @@ fn parse_version_formula(formula: &OpamVersionFormula) -> Option<Range<OpamVersi
                     let inner = parse_version_formula(*&arg)?;
                     Some(inner.negate())
                 },
-                UnaryOp::Defined => {
-                    // TODO
-                    None
-                }
             }
         }
         OpamVersionFormula::Filter(_filter_expr) => {

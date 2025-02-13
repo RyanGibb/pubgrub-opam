@@ -5,7 +5,7 @@
       "conditions": [
         {
           "logop": "or",
-          "lhs": 1,
+          "lhs": "1",
           "rhs": {
             "group": [
               {
@@ -34,7 +34,7 @@
                           {
                             "logop": "and",
                             "lhs": { "prefix_relop": "lt", "arg": "4" },
-                            "rhs": true
+                            "rhs": "true"
                           }
                         ]
                       }
