@@ -12,9 +12,9 @@ pub struct Index {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct Binary {
-    pub lhs: Box<PackageFormula>,
-    pub rhs: Box<PackageFormula>,
+pub struct Binary<T> {
+    pub lhs: Box<T>,
+    pub rhs: Box<T>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -35,20 +35,75 @@ impl Display for HashedRange {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum VersionFormula {
+    Variable(String),
+    Version(HashedRange),
+    Eq(Binary<VersionFormula>),
+    Geq(Binary<VersionFormula>),
+    Gt(Binary<VersionFormula>),
+    Leq(Binary<VersionFormula>),
+    Lt(Binary<VersionFormula>),
+    Neq(Binary<VersionFormula>),
+    Or(Binary<VersionFormula>),
+    And(Binary<VersionFormula>),
+    Not(Box<VersionFormula>),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum PackageFormula {
-    Or(Binary),
-    And(Binary),
+    Or(Binary<PackageFormula>),
+    And(Binary<PackageFormula>),
     Base {
         name: PackageName,
-        range: HashedRange,
+        formula: VersionFormula,
     },
+}
+
+impl Display for VersionFormula {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VersionFormula::Variable(variable) => {
+                write!(f, "{}", variable)
+            }
+            VersionFormula::Version(version) => {
+                write!(f, "{}", version)
+            }
+            VersionFormula::Eq(binary) => {
+                write!(f, "({} = {})", binary.lhs, binary.rhs)
+            }
+            VersionFormula::Geq(binary) => {
+                write!(f, "({} >= {})", binary.lhs, binary.rhs)
+            }
+            VersionFormula::Gt(binary) => {
+                write!(f, "({} > {})", binary.lhs, binary.rhs)
+            }
+            VersionFormula::Leq(binary) => {
+                write!(f, "({} <= {})", binary.lhs, binary.rhs)
+            }
+            VersionFormula::Lt(binary) => {
+                write!(f, "({} < {})", binary.lhs, binary.rhs)
+            }
+            VersionFormula::Neq(binary) => {
+                write!(f, "({} _= {})", binary.lhs, binary.rhs)
+            }
+            VersionFormula::And(binary) => {
+                write!(f, "({} & {})", binary.lhs, binary.rhs)
+            }
+            VersionFormula::Or(binary) => {
+                write!(f, "({} | {})", binary.lhs, binary.rhs)
+            }
+            VersionFormula::Not(formula) => {
+                write!(f, "!{}", formula)
+            }
+        }
+    }
 }
 
 impl Display for PackageFormula {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PackageFormula::Base { name, range } => {
-                write!(f, "({}: {})", name, range)
+            PackageFormula::Base { name, formula } => {
+                write!(f, "({}: {})", name, formula)
             }
             PackageFormula::And(binary) => {
                 write!(f, "({} & {})", binary.lhs, binary.rhs)
