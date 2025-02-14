@@ -125,6 +125,44 @@ pub enum FilterExpr {
     Literal(LiteralValue),
 }
 
+// not quite CNF, we just move negations to the leaves
+fn normalize_negation(expr: VersionFormula) -> VersionFormula {
+    match expr {
+        VersionFormula::Version(version) => {
+            VersionFormula::Version(HashedRange(version.0.negate()))
+        },
+        VersionFormula::Variable(variable) => {
+            VersionFormula::Not(variable)
+        }
+        VersionFormula::Eq(binary) => {
+            VersionFormula::Neq(binary)
+        }
+        VersionFormula::Geq(binary) => {
+            VersionFormula::Lt(binary)
+        }
+        VersionFormula::Gt(binary) => {
+            VersionFormula::Leq(binary)
+        }
+        VersionFormula::Leq(binary) => {
+            VersionFormula::Gt(binary)
+        }
+        VersionFormula::Lt(binary) => {
+            VersionFormula::Geq(binary)
+        }
+        VersionFormula::Neq(binary) => {
+            VersionFormula::Eq(binary)
+        }
+        // De Morgan’s laws
+        VersionFormula::And( Binary { lhs, rhs}) => {
+            VersionFormula::Or( Binary { lhs: Box::new(normalize_negation(*lhs)), rhs: Box::new(normalize_negation(*rhs)) })
+        }
+        VersionFormula::Or( Binary { lhs, rhs}) => {
+            VersionFormula::And( Binary { lhs: Box::new(normalize_negation(*lhs)), rhs: Box::new(normalize_negation(*rhs)) })
+        }
+        _ => expr,
+    }
+}
+
 fn parse_filter_expr(filter: &FilterExpr) -> VersionFormula {
     match filter {
         FilterExpr::LogOp { logop, lhs, rhs} => {
@@ -147,12 +185,7 @@ fn parse_filter_expr(filter: &FilterExpr) -> VersionFormula {
             match pfxop {
                 UnaryOp::Not => {
                     let inner = parse_filter_expr(*&arg);
-                    match inner {
-                        VersionFormula::Version(version) => {
-                            VersionFormula::Version(HashedRange(version.0.negate()))
-                        },
-                        _ => VersionFormula::Not(Box::new(inner)),
-                    }
+                    normalize_negation(inner)
                 },
             }
         },
@@ -233,12 +266,7 @@ fn parse_version_formula(formula: &OpamVersionFormula) -> VersionFormula {
             match pfxop {
                 UnaryOp::Not => {
                     let inner = parse_version_formula(*&arg);
-                    match inner {
-                        VersionFormula::Version(version) => {
-                            VersionFormula::Version(HashedRange(version.0.negate()))
-                        },
-                        _ => VersionFormula::Not(Box::new(inner)),
-                    }
+                    normalize_negation(inner)
                 },
             }
         }

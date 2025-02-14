@@ -36,8 +36,8 @@ impl Display for HashedRange {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum VersionFormula {
-    Variable(String),
     Version(HashedRange),
+    Variable(String),
     Eq(Binary<VersionFormula>),
     Geq(Binary<VersionFormula>),
     Gt(Binary<VersionFormula>),
@@ -46,7 +46,7 @@ pub enum VersionFormula {
     Neq(Binary<VersionFormula>),
     Or(Binary<VersionFormula>),
     And(Binary<VersionFormula>),
-    Not(Box<VersionFormula>),
+    Not(String),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -92,8 +92,8 @@ impl Display for VersionFormula {
             VersionFormula::Or(binary) => {
                 write!(f, "({} | {})", binary.lhs, binary.rhs)
             }
-            VersionFormula::Not(formula) => {
-                write!(f, "!{}", formula)
+            VersionFormula::Not(variable) => {
+                write!(f, "!{}", variable)
             }
         }
     }
