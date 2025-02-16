@@ -213,8 +213,7 @@ fn parse_filter_expr(filter: &FilterExpr) -> VersionFormula {
             match lit {
                 LiteralValue::Str(s) => {
                     let version = s.parse::<OpamVersion>().unwrap();
-                    let range = Range::<OpamVersion>::exact(version);
-                    VersionFormula::Version(HashedRange(range))
+                    VersionFormula::Lit(version)
                 }
             }
     }

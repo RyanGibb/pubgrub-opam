@@ -1,22 +1,32 @@
-use crate::index::{Binary, Index, PackageFormula};
+use crate::index::{Binary, Index, PackageFormula, VersionFormula};
 use crate::opam_version::OpamVersion;
 use crate::parse::parse_dependencies_for_package_version;
 use core::borrow::Borrow;
 use core::fmt::Display;
-use std::sync::LazyLock;
+use std::collections::{HashMap, HashSet};
+use std::sync::{LazyLock, Mutex};
 use pubgrub::range::Range;
 use pubgrub::solver::{Dependencies, DependencyConstraints, DependencyProvider};
+use pubgrub::version::Version;
 use std::str::FromStr;
 use pubgrub::type_aliases::Map;
+
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Package {
     Base(String),
-    Lor{
+    Lor {
         lhs: Box<PackageFormula>,
         rhs: Box<PackageFormula>,
     },
+    Proxy {
+        name: String,
+        formula: Box<VersionFormula>
+    },
+    Var(String)
 }
+
+static VARIABLE_CACHE: LazyLock<Mutex<HashMap<String, HashSet<OpamVersion>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 impl FromStr for Package {
     type Err = String;
@@ -34,12 +44,17 @@ impl Display for Package {
         match self {
             Package::Base(pkg) => write!(f, "{}", pkg),
             Package::Lor { lhs, rhs } => write!(f, "({} | {})", lhs, rhs),
+            Package::Proxy { name, formula } => write!(f, "({} {{{}}})", name, formula),
+            Package::Var(var) => write!(f, "Var {}", var),
         }
     }
 }
 
 static LHS_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("lhs".to_string()));
 static RHS_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("rhs".to_string()));
+
+static TRUE_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("true".to_string()));
+static FALSE_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("false".to_string()));
 
 impl Index {
     pub fn list_versions(&self, package: &Package) -> Box<Vec<OpamVersion>> {
@@ -49,7 +64,15 @@ impl Index {
                 // println!("\t{:?}", self.available_versions(pkg));
                 Box::new(self.available_versions(pkg))
             },
-            Package::Lor { lhs : _, rhs : _} => {
+            Package::Var(var) =>
+                match VARIABLE_CACHE.lock().unwrap().get(var) {
+                    Some(m) => Box::new(m.iter().cloned().collect()),
+                    None => {
+                        let versions = vec![LHS_VERSION.clone(), RHS_VERSION.clone()];
+                        Box::new(versions)
+                    }
+                },
+            _ => {
                 let versions = vec![LHS_VERSION.clone(), RHS_VERSION.clone()];
                 Box::new(versions)
             },
@@ -100,7 +123,204 @@ impl DependencyProvider<Package, OpamVersion> for Index {
                     }
                 }
             }
+            Package::Proxy { name, formula } => {
+                Ok(Dependencies::Known(from_version_formula(name, version, formula)))
+            }
+            Package::Var(_) => Ok(Dependencies::Known(Map::default()))
         }
+    }
+}
+
+fn from_version_formula(name: &String, version: &OpamVersion, formula: &VersionFormula) -> DependencyConstraints<Package, OpamVersion> {
+    let mut map = Map::default();
+    match formula {
+        VersionFormula::Version(range) => {
+            map.insert(Package::Base(name.to_string()), range.0.clone());
+            map
+        },
+        VersionFormula::Variable(variable) => {
+            match version {
+                OpamVersion(ver) => match ver.as_str() {
+                    "lhs" => map.insert(Package::Var(variable.to_string()), Range::exact(FALSE_VERSION.clone())),
+                    "rhs" => map.insert(Package::Base(name.to_string()), Range::any()),
+                    _ => panic!("Unknown Proxy version {}", version),
+                }
+            };
+            map
+        },
+        VersionFormula::Not(variable) => {
+            match version {
+                OpamVersion(ver) => match ver.as_str() {
+                    "lhs" => map.insert(Package::Var(variable.to_string()), Range::exact(TRUE_VERSION.clone())),
+                    "rhs" => map.insert(Package::Base(name.to_string()), Range::any()),
+                    _ => panic!("Unknown Proxy version {}", version),
+                }
+            };
+            map
+        }
+        VersionFormula::Eq(Binary { lhs, rhs }) => {
+            match version {
+                OpamVersion(ver) => match ver.as_str() {
+                    "lhs" => match (*lhs.clone(), *rhs.clone()) {
+                        (VersionFormula::Lit(ver), VersionFormula::Variable(var)) => {
+                            VARIABLE_CACHE.lock().unwrap()
+                                                 .entry(var.to_string())
+                                                 .or_insert_with(HashSet::new)
+                                                 .insert(ver.clone());
+                            map.insert(Package::Var(var.to_string()), Range::<OpamVersion>::exact(ver).negate())
+                        },
+                        (VersionFormula::Variable(var), VersionFormula::Lit(ver)) => {
+                            VARIABLE_CACHE.lock().unwrap()
+                                                 .entry(var.to_string())
+                                                 .or_insert_with(HashSet::new)
+                                                 .insert(ver.clone());
+                            map.insert(Package::Var(var.to_string()), Range::<OpamVersion>::exact(ver).negate())
+                        },
+                        _ => panic!("invalid operator for ({}, {}): {}", name, version, formula)
+                    }
+                    "rhs" => map.insert(Package::Base(name.to_string()), Range::any()),
+                    _ => panic!("Unknown Proxy version {}", version),
+                }
+            };
+            map
+        }
+        VersionFormula::Neq(Binary { lhs, rhs }) => {
+            match version {
+                OpamVersion(ver) => match ver.as_str() {
+                    "lhs" => match (*lhs.clone(), *rhs.clone()) {
+                        (VersionFormula::Lit(ver), VersionFormula::Variable(var)) => map.insert(Package::Var(var.to_string()), Range::<OpamVersion>::exact(ver)),
+                        (VersionFormula::Variable(var), VersionFormula::Lit(ver)) => map.insert(Package::Var(var.to_string()), Range::<OpamVersion>::exact(ver)),
+                        _ => panic!("invalid operator for ({}, {}): {}", name, version, formula)
+                    }
+                    "rhs" => map.insert(Package::Base(name.to_string()), Range::any()),
+                    _ => panic!("Unknown Proxy version {}", version),
+                }
+            };
+            map
+        },
+        VersionFormula::Geq(Binary { lhs, rhs }) => {
+            match version {
+                OpamVersion(ver) => match ver.as_str() {
+                    "lhs" => match (*lhs.clone(), *rhs.clone()) {
+                        (VersionFormula::Lit(ver), VersionFormula::Variable(var)) => {
+                            VARIABLE_CACHE.lock().unwrap()
+                                                 .entry(var.to_string())
+                                                 .or_insert_with(HashSet::new)
+                                                 .insert(ver.clone());
+                            map.insert(Package::Var(var.to_string()), Range::<OpamVersion>::strictly_lower_than(ver))
+                        },
+                        (VersionFormula::Variable(var), VersionFormula::Lit(ver)) => {
+                            VARIABLE_CACHE.lock().unwrap()
+                                                 .entry(var.to_string())
+                                                 .or_insert_with(HashSet::new)
+                                                 .insert(ver.clone());
+                            map.insert(Package::Var(var.to_string()), Range::<OpamVersion>::strictly_lower_than(ver))
+                        },
+                        _ => panic!("invalid operator for ({}, {}): {}", name, version, formula)
+                    }
+                    "rhs" => map.insert(Package::Base(name.to_string()), Range::any()),
+                    _ => panic!("Unknown Proxy version {}", version),
+                }
+            };
+            map
+        },
+        VersionFormula::Gt(Binary { lhs, rhs }) => {
+            match version {
+                OpamVersion(ver) => match ver.as_str() {
+                    "lhs" => match (*lhs.clone(), *rhs.clone()) {
+                        (VersionFormula::Lit(ver), VersionFormula::Variable(var)) => {
+                            VARIABLE_CACHE.lock().unwrap()
+                                                 .entry(var.to_string())
+                                                 .or_insert_with(HashSet::new)
+                                                 .insert(ver.clone());
+                            map.insert(Package::Var(var.to_string()), Range::<OpamVersion>::strictly_lower_than(ver.bump()))
+                        },
+                        (VersionFormula::Variable(var), VersionFormula::Lit(ver)) => {
+                            VARIABLE_CACHE.lock().unwrap()
+                                                 .entry(var.to_string())
+                                                 .or_insert_with(HashSet::new)
+                                                 .insert(ver.clone());
+                            map.insert(Package::Var(var.to_string()), Range::<OpamVersion>::strictly_lower_than(ver.bump()))
+                        },
+                        _ => panic!("invalid operator for ({}, {}): {}", name, version, formula)
+                    }
+                    "rhs" => map.insert(Package::Base(name.to_string()), Range::any()),
+                    _ => panic!("Unknown Proxy version {}", version),
+                }
+            };
+            map
+        },
+        VersionFormula::Leq(Binary { lhs, rhs }) => {
+            match version {
+                OpamVersion(ver) => match ver.as_str() {
+                    "lhs" => match (*lhs.clone(), *rhs.clone()) {
+                        (VersionFormula::Lit(ver), VersionFormula::Variable(var)) => {
+                            VARIABLE_CACHE.lock().unwrap()
+                                                 .entry(var.to_string())
+                                                 .or_insert_with(HashSet::new)
+                                                 .insert(ver.clone());
+                            map.insert(Package::Var(var.to_string()), Range::<OpamVersion>::higher_than(ver.bump()))
+                        },
+                        (VersionFormula::Variable(var), VersionFormula::Lit(ver)) => {
+                            VARIABLE_CACHE.lock().unwrap()
+                                                 .entry(var.to_string())
+                                                 .or_insert_with(HashSet::new)
+                                                 .insert(ver.clone());
+                            map.insert(Package::Var(var.to_string()), Range::<OpamVersion>::higher_than(ver.bump()))
+                        },
+                        _ => panic!("invalid operator for ({}, {}): {}", name, version, formula)
+                    }
+                    "rhs" => map.insert(Package::Base(name.to_string()), Range::any()),
+                    _ => panic!("Unknown Proxy version {}", version),
+                }
+            };
+            map
+        },
+        VersionFormula::Lt(Binary { lhs, rhs }) => {
+            match version {
+                OpamVersion(ver) => match ver.as_str() {
+                    "lhs" => match (*lhs.clone(), *rhs.clone()) {
+                        (VersionFormula::Lit(ver), VersionFormula::Variable(var)) => {
+                            VARIABLE_CACHE.lock().unwrap()
+                                                 .entry(var.to_string())
+                                                 .or_insert_with(HashSet::new)
+                                                 .insert(ver.clone());
+                            map.insert(Package::Var(var.to_string()), Range::<OpamVersion>::higher_than(ver))
+                        },
+                        (VersionFormula::Variable(var), VersionFormula::Lit(ver)) => {
+                            VARIABLE_CACHE.lock().unwrap()
+                                                 .entry(var.to_string())
+                                                 .or_insert_with(HashSet::new)
+                                                 .insert(ver.clone());
+                            map.insert(Package::Var(var.to_string()), Range::<OpamVersion>::higher_than(ver))
+                        },
+                        _ => panic!("invalid operator for ({}, {}): {}", name, version, formula)
+                    }
+                    "rhs" => map.insert(Package::Base(name.to_string()), Range::any()),
+                    _ => panic!("Unknown Proxy version {}", version),
+                }
+            };
+            map
+        },
+        VersionFormula::And(Binary { lhs, rhs }) => match version {
+            OpamVersion(ver) => match ver.as_str() {
+                "lhs" => map,
+                "rhs" => {
+                    let left = from_version_formula(name, version, lhs);
+                    let right = from_version_formula(name, version, rhs);
+                    merge_constraints(left, right)
+                }
+                _ => panic!("Unknown Proxy version {}", version),
+            }
+        }
+        VersionFormula::Or(Binary { lhs, rhs }) => match version {
+            OpamVersion(ver) => match ver.as_str() {
+                "lhs" => from_version_formula(name, version, lhs),
+                "rhs" => from_version_formula(name, version, rhs),
+                _ => panic!("Unknown Proxy version {}", version),
+            }
+        }
+        _ => panic!("invalid literal for ({}, {}): {}", name, version, formula)
     }
 }
 
@@ -112,9 +332,14 @@ pub fn from_formulas(formulas: &Vec<PackageFormula>) -> DependencyConstraints<Pa
 
 fn from_formula(formula: &PackageFormula) -> DependencyConstraints<Package, OpamVersion> {
     match formula {
-        PackageFormula::Base { name, range } => {
+        PackageFormula::Base { name, formula } => {
             let mut map = Map::default();
-            map.insert(Package::Base(name.to_string()), range.0.clone());
+            match formula {
+                VersionFormula::Version(range) =>
+                    map.insert(Package::Base(name.to_string()), range.0.clone()),
+                _ =>
+                    map.insert(Package::Proxy { name: name.to_string(), formula: Box::new(formula.clone()) }, Range::any()),
+            };
             map
         },
         PackageFormula::Or(Binary { lhs, rhs }) => {

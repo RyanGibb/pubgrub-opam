@@ -45,6 +45,8 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<
                         Package::Base(name) => dependents.push((name, solved_version)),
                         Package::Lor { lhs : _, rhs : _ } =>
                             dependents.extend(get_resolved_deps(&index, sol, dep_package, solved_version)),
+                        Package::Var(name) => dependents.push(("variable + ".to_owned() + &name, solved_version)),
+                        _ => ()
                     };
                 }
                 dependents
@@ -58,7 +60,9 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<
 
     let mut resolved_graph: HashMap<(String, &OpamVersion), Vec<(String, &OpamVersion)>> =
         HashMap::new();
+    println!("\n\nSolution Set:");
     for (package, version) in &sol {
+        print!("\t({}, {})", package, version);
         match package {
             Package::Base(name) => {
                 let deps = get_resolved_deps(&index, &sol, package.clone(), version);
@@ -68,9 +72,9 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<
         }
     }
 
-    println!("Resolved Dependency Graph:");
+    println!("\n\nResolved Dependency Graph:");
     for ((name, version), dependents) in resolved_graph {
-        print!("({}, {})", name, version);
+        print!("\t({}, {})", name, version);
         if dependents.len() > 0 {
             print!(" -> ")
         }
