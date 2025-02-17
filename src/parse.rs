@@ -172,12 +172,12 @@ fn parse_filter_expr(filter: &FilterExpr) -> VersionFormula {
                 LogicalOp::And =>
                     match (left.clone(), right.clone()) {
                         (VersionFormula::Version(l), VersionFormula::Version(r)) => VersionFormula::Version(HashedRange(l.0.intersection(&r.0))),
-                        _ => VersionFormula::Or( Binary { lhs: Box::new(left), rhs: Box::new(right)} )
+                        _ => VersionFormula::And( Binary { lhs: Box::new(left), rhs: Box::new(right)} )
                     },
                 LogicalOp::Or =>
                     match (left.clone(), right.clone()) {
                         (VersionFormula::Version(l), VersionFormula::Version(r)) => VersionFormula::Version(HashedRange(l.0.union(&r.0))),
-                        _ => VersionFormula::And( Binary { lhs: Box::new(left), rhs: Box::new(right)} )
+                        _ => VersionFormula::Or( Binary { lhs: Box::new(left), rhs: Box::new(right)} )
                     },
             }
         },
@@ -228,12 +228,12 @@ fn parse_version_formula(formula: &OpamVersionFormula) -> VersionFormula {
                 LogicalOp::And =>
                     match (left.clone(), right.clone()) {
                         (VersionFormula::Version(l), VersionFormula::Version(r)) => VersionFormula::Version(HashedRange(l.0.intersection(&r.0))),
-                        _ => VersionFormula::Or( Binary { lhs: Box::new(left), rhs: Box::new(right)} )
+                        _ => VersionFormula::And( Binary { lhs: Box::new(left), rhs: Box::new(right)} )
                     },
                 LogicalOp::Or =>
                     match (left.clone(), right.clone()) {
                         (VersionFormula::Version(l), VersionFormula::Version(r)) => VersionFormula::Version(HashedRange(l.0.union(&r.0))),
-                        _ => VersionFormula::And( Binary { lhs: Box::new(left), rhs: Box::new(right)} )
+                        _ => VersionFormula::Or( Binary { lhs: Box::new(left), rhs: Box::new(right)} )
                     },
             }
         }

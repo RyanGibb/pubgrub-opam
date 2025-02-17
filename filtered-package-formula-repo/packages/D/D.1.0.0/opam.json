@@ -1,22 +1,13 @@
 {
   "depends": [
-    {
-      "val": "B",
-      "conditions": [
-        {
-          "logop": "and",
-          "lhs": { "prefix_relop": "eq", "arg": "1.0.0" },
-          "rhs": { "id": "test" }
-        }
-      ]
-    },
+    { "val": "B", "conditions": [ { "id": "test" } ] },
     {
       "val": "C",
       "conditions": [
         {
           "logop": "and",
-          "lhs": { "prefix_relop": "eq", "arg": "1.0.0" },
-          "rhs": { "id": "build" }
+          "lhs": { "id": "build" },
+          "rhs": { "prefix_relop": "eq", "arg": "1.0.0" }
         }
       ]
     }

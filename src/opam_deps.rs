@@ -43,9 +43,9 @@ impl Display for Package {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Package::Base(pkg) => write!(f, "{}", pkg),
-            Package::Lor { lhs, rhs } => write!(f, "({} | {})", lhs, rhs),
-            Package::Proxy { name, formula } => write!(f, "({} {{{}}})", name, formula),
-            Package::Var(var) => write!(f, "Var {}", var),
+            Package::Lor { lhs, rhs } => write!(f, "{} | {}", lhs, rhs),
+            Package::Proxy { name, formula } => write!(f, "{} {{{}}}", name, formula),
+            Package::Var(var) => write!(f, "`{}`", var),
         }
     }
 }
@@ -59,24 +59,19 @@ static FALSE_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("fals
 impl Index {
     pub fn list_versions(&self, package: &Package) -> Box<Vec<OpamVersion>> {
         // println!("list {}", package);
-        match package {
-            Package::Base(pkg) => {
-                // println!("\t{:?}", self.available_versions(pkg));
-                Box::new(self.available_versions(pkg))
-            },
+        let versions = match package {
+            Package::Base(pkg) => self.available_versions(pkg),
             Package::Var(var) =>
                 match VARIABLE_CACHE.lock().unwrap().get(var) {
-                    Some(m) => Box::new(m.iter().cloned().collect()),
-                    None => {
-                        let versions = vec![LHS_VERSION.clone(), RHS_VERSION.clone()];
-                        Box::new(versions)
-                    }
+                    Some(m) => m.iter().cloned().collect(),
+                    None => vec![FALSE_VERSION.clone(), TRUE_VERSION.clone()],
                 },
             _ => {
-                let versions = vec![LHS_VERSION.clone(), RHS_VERSION.clone()];
-                Box::new(versions)
+                vec![LHS_VERSION.clone(), RHS_VERSION.clone()]
             },
-        }
+        };
+        // println!("\t{:?}", versions);
+        Box::new(versions)
     }
 }
 
@@ -99,22 +94,24 @@ impl DependencyProvider<Package, OpamVersion> for Index {
         match package {
             Package::Base(pkg) => {
                 print!("({}, {})", package, version);
-                let deps = parse_dependencies_for_package_version(self.repo.as_str(), pkg, version.to_string().as_str()).unwrap();
+                let formulas = parse_dependencies_for_package_version(self.repo.as_str(), pkg, version.to_string().as_str()).unwrap();
+                let deps = from_formulas(&formulas);
                 if deps.len() > 0 {
                     print!(" -> ")
                 }
                 let mut first = true;
-                for formula in deps.clone() {
+                for (package, range) in deps.clone() {
                     if !first {
                         print!(", ");
                     }
-                    print!("{}", formula);
+                    print!("({}, {})", package, range);
                     first = false;
                 }
                 println!();
-                Ok(Dependencies::Known(from_formulas(&deps)))
+                Ok(Dependencies::Known(deps))
             }
             Package::Lor { lhs, rhs } => {
+                // println!();
                 match version {
                     OpamVersion(ver) => match ver.as_str() {
                         "lhs" => Ok(Dependencies::Known(from_formula(*&lhs))),
@@ -124,9 +121,25 @@ impl DependencyProvider<Package, OpamVersion> for Index {
                 }
             }
             Package::Proxy { name, formula } => {
-                Ok(Dependencies::Known(from_version_formula(name, version, formula)))
+                let deps = from_version_formula(name, version, formula);
+                // if deps.len() > 0 {
+                //     print!(" -> ")
+                // }
+                // let mut first = true;
+                // for (package, range) in deps.clone() {
+                //     if !first {
+                //         print!(", ");
+                //     }
+                //     print!("({}, {})", package, range);
+                //     first = false;
+                // }
+                // println!();
+                Ok(Dependencies::Known(deps))
             }
-            Package::Var(_) => Ok(Dependencies::Known(Map::default()))
+            Package::Var(_) => {
+                // println!();
+                Ok(Dependencies::Known(Map::default()))
+            }
         }
     }
 }
@@ -141,8 +154,14 @@ fn from_version_formula(name: &String, version: &OpamVersion, formula: &VersionF
         VersionFormula::Variable(variable) => {
             match version {
                 OpamVersion(ver) => match ver.as_str() {
-                    "lhs" => map.insert(Package::Var(variable.to_string()), Range::exact(FALSE_VERSION.clone())),
-                    "rhs" => map.insert(Package::Base(name.to_string()), Range::any()),
+                    "lhs" => {
+                        map.insert(Package::Var(variable.to_string()), Range::exact(FALSE_VERSION.clone()));
+                        ()
+                    },
+                    "rhs" => {
+                        map.insert(Package::Base(name.to_string()), Range::any());
+                        map.insert(Package::Var(variable.to_string()), Range::exact(TRUE_VERSION.clone()));
+                    },
                     _ => panic!("Unknown Proxy version {}", version),
                 }
             };
@@ -151,8 +170,14 @@ fn from_version_formula(name: &String, version: &OpamVersion, formula: &VersionF
         VersionFormula::Not(variable) => {
             match version {
                 OpamVersion(ver) => match ver.as_str() {
-                    "lhs" => map.insert(Package::Var(variable.to_string()), Range::exact(TRUE_VERSION.clone())),
-                    "rhs" => map.insert(Package::Base(name.to_string()), Range::any()),
+                    "lhs" => {
+                        map.insert(Package::Base(name.to_string()), Range::any());
+                        map.insert(Package::Var(variable.to_string()), Range::exact(FALSE_VERSION.clone()));
+                    },
+                    "rhs" => {
+                        map.insert(Package::Var(variable.to_string()), Range::exact(TRUE_VERSION.clone()));
+                        ()
+                    }
                     _ => panic!("Unknown Proxy version {}", version),
                 }
             };

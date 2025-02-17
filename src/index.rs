@@ -70,7 +70,7 @@ impl Display for VersionFormula {
                 write!(f, "{}", literal)
             }
             VersionFormula::Version(version) => {
-                write!(f, "{}", version)
+                write!(f, "= {}", version)
             }
             VersionFormula::Eq(binary) => {
                 write!(f, "({} = {})", binary.lhs, binary.rhs)
@@ -107,7 +107,7 @@ impl Display for PackageFormula {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PackageFormula::Base { name, formula } => {
-                write!(f, "({}: {})", name, formula)
+                write!(f, "({} {{{}}})", name, formula)
             }
             PackageFormula::And(binary) => {
                 write!(f, "({} & {})", binary.lhs, binary.rhs)

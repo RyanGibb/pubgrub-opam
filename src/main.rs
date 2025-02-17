@@ -6,7 +6,7 @@ use pubgrub::type_aliases::SelectedDependencies;
 use pubgrub_opam::index::Index;
 use pubgrub_opam::opam_deps::Package;
 use pubgrub_opam::opam_version::OpamVersion;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::str::FromStr;
 
@@ -29,7 +29,7 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<
         sol: &'a SelectedDependencies<Package, OpamVersion>,
         package: Package,
         version: &'a OpamVersion,
-    ) -> Vec<(String, &'a OpamVersion)> {
+    ) -> HashSet<(String, &'a OpamVersion)> {
         let dependencies = index.get_dependencies(&package, &version);
         match dependencies {
             Ok(Dependencies::Known(constraints)) => {
@@ -38,31 +38,62 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<
                     OpamVersion,
                     std::hash::BuildHasherDefault<rustc_hash::FxHasher>,
                 > = &sol;
-                let mut dependents = Vec::new();
+                let mut dependents = HashSet::new();
                 for (dep_package, _dep_versions) in constraints {
                     let solved_version = sol.get(&dep_package).unwrap();
                     match dep_package {
-                        Package::Base(name) => dependents.push((name, solved_version)),
-                        Package::Lor { lhs : _, rhs : _ } =>
-                            dependents.extend(get_resolved_deps(&index, sol, dep_package, solved_version)),
-                        Package::Var(name) => dependents.push(("variable + ".to_owned() + &name, solved_version)),
-                        _ => ()
+                        Package::Base(name) => {
+                            dependents.insert((name, solved_version));
+                        }
+                        Package::Lor { lhs : _, rhs : _ } => {
+                            dependents.extend(get_resolved_deps(&index, sol, dep_package, solved_version));
+                        }
+                        Package::Proxy { name : _, formula : _ } => {
+                            dependents.extend(get_resolved_deps(&index, sol, dep_package, solved_version));
+                        }
+                        Package::Var(_) => {
+                            dependents.insert((format!("{}", dep_package), solved_version));
+                        }
                     };
                 }
                 dependents
             }
             _ => {
                 println!("No available dependencies for package {}", package);
-                Vec::new()
+                HashSet::new()
             }
         }
     }
 
-    let mut resolved_graph: HashMap<(String, &OpamVersion), Vec<(String, &OpamVersion)>> =
-        HashMap::new();
+
     println!("\n\nSolution Set:");
     for (package, version) in &sol {
-        print!("\t({}, {})", package, version);
+        match package {
+            Package::Base(name) => {
+                println!("\t({}, {})", name, version);
+            }
+            Package::Var(name) => {
+                println!("\t{} = {}", name, version);
+            }
+            // Package::Lor { lhs, rhs } => {
+            //     match version {
+            //         OpamVersion(ver) => match ver.as_str() {
+            //             "lhs" => println!("\t{}", lhs),
+            //             "rhs" => println!("\t{}", rhs),
+            //             _ => panic!("Unknown OR version {}", version),
+            //         }
+            //     }
+            // }
+            // Package::Proxy { name : _, formula : _ } => {
+            //     println!("\t{}, {}", package, version);
+            // }
+            _ => ()
+        }
+    }
+
+    let mut resolved_graph: HashMap<(String, &OpamVersion), HashSet<(String, &OpamVersion)>> =
+        HashMap::new();
+    for (package, version) in &sol {
         match package {
             Package::Base(name) => {
                 let deps = get_resolved_deps(&index, &sol, package.clone(), version);
