@@ -1,4 +1,4 @@
-use pubgrub::range::Range;
+use pubgrub::Range;
 use core::fmt::Display;
 use std::cell::Cell;
 use std::hash::{Hash, Hasher};

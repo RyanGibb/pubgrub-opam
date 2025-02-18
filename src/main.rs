@@ -1,26 +1,22 @@
-use pubgrub::error::PubGrubError;
-use pubgrub::report::{DefaultStringReporter, Reporter};
-use pubgrub::solver::Dependencies;
-use pubgrub::solver::DependencyProvider;
-use pubgrub::type_aliases::SelectedDependencies;
+use pubgrub::{DefaultStringReporter, Dependencies, DependencyProvider, PubGrubError, Reporter, SelectedDependencies};
 use pubgrub_opam::index::Index;
 use pubgrub_opam::opam_deps::Package;
 use pubgrub_opam::opam_version::OpamVersion;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::error::Error;
 use std::str::FromStr;
 
-fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<SelectedDependencies<Package, OpamVersion>, Box<dyn Error>> {
+fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<SelectedDependencies<Index>, Box<dyn Error>> {
     let index = Index::new(repo.to_string());
     index.set_debug(true);
 
-    let sol: SelectedDependencies<Package, OpamVersion> =
-        match pubgrub::solver::resolve(&index, pkg, version) {
+    let sol: SelectedDependencies<Index> =
+        match pubgrub::resolve(&index, pkg, version) {
             Ok(sol) => Ok(sol),
             Err(PubGrubError::NoSolution(mut derivation_tree)) => {
                 derivation_tree.collapse_no_versions();
                 eprintln!("{}", DefaultStringReporter::report(&derivation_tree));
-                Err(PubGrubError::NoSolution(derivation_tree))
+                Err(PubGrubError::<Index>::NoSolution(derivation_tree))
             }
             Err(err) => panic!("{:?}", err),
         }?;
@@ -29,18 +25,13 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<Selected
 
     fn get_resolved_deps<'a>(
         index: &'a Index,
-        sol: &'a SelectedDependencies<Package, OpamVersion>,
+        sol: &'a SelectedDependencies<Index>,
         package: Package,
         version: &'a OpamVersion,
     ) -> HashSet<(String, &'a OpamVersion)> {
         let dependencies = index.get_dependencies(&package, &version);
         match dependencies {
-            Ok(Dependencies::Known(constraints)) => {
-                let sol: &HashMap<
-                    Package,
-                    OpamVersion,
-                    std::hash::BuildHasherDefault<rustc_hash::FxHasher>,
-                > = &sol;
+            Ok(Dependencies::Available(constraints)) => {
                 let mut dependents = HashSet::new();
                 for (dep_package, _dep_versions) in constraints {
                     let solved_version = sol.get(&dep_package).unwrap();

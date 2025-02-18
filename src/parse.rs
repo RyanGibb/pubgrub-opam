@@ -1,7 +1,6 @@
 use crate::index::{Binary, HashedRange, PackageFormula, VersionFormula};
 use crate::opam_version::OpamVersion;
-use pubgrub::range::Range;
-use pubgrub::version::Version;
+use pubgrub::Range;
 use serde::Deserialize;
 use std::error::Error;
 use std::fs;
@@ -129,7 +128,7 @@ pub enum FilterExpr {
 fn normalize_negation(expr: VersionFormula) -> VersionFormula {
     match expr {
         VersionFormula::Version(version) => {
-            VersionFormula::Version(HashedRange(version.0.negate()))
+            VersionFormula::Version(HashedRange(version.0.complement()))
         },
         VersionFormula::Variable(variable) => {
             VersionFormula::Not(variable)
@@ -242,12 +241,12 @@ fn parse_version_formula(formula: &OpamVersionFormula) -> VersionFormula {
                 FilterOrVersion::Version(version) => {
                     let version = version.parse::<OpamVersion>().unwrap();
                     let range = match prefix_relop {
-                        RelOp::Eq => Range::<OpamVersion>::exact(version),
+                        RelOp::Eq => Range::<OpamVersion>::singleton(version),
                         RelOp::Geq => Range::<OpamVersion>::higher_than(version),
-                        RelOp::Gt => Range::<OpamVersion>::higher_than(version.bump()),
+                        RelOp::Gt => Range::<OpamVersion>::strictly_higher_than(version),
                         RelOp::Lt => Range::<OpamVersion>::strictly_lower_than(version),
-                        RelOp::Leq => Range::<OpamVersion>::strictly_lower_than(version.bump()),
-                        RelOp::Neq => Range::<OpamVersion>::exact(version).negate(),
+                        RelOp::Leq => Range::<OpamVersion>::lower_than(version),
+                        RelOp::Neq => Range::<OpamVersion>::singleton(version).complement(),
                     };
                     VersionFormula::Version(HashedRange(range))
                 },
@@ -277,7 +276,7 @@ pub fn parse_package_formula(formula: &OpamPackageFormula) -> PackageFormula {
     match formula {
         OpamPackageFormula::Simple { name, conditions } => {
             let formula = if conditions.is_empty() {
-                VersionFormula::Version(HashedRange(Range::any()))
+                VersionFormula::Version(HashedRange(Range::full()))
             } else {
                 parse_version_formula(&conditions[0])
             };
@@ -309,7 +308,7 @@ pub fn parse_package_formula(formula: &OpamPackageFormula) -> PackageFormula {
         OpamPackageFormula::Plain(s) => {
             PackageFormula::Base {
                 name: s.clone(),
-                formula: VersionFormula::Version(HashedRange(Range::any())),
+                formula: VersionFormula::Version(HashedRange(Range::full())),
             }
         },
     }

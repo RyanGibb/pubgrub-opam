@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
 use std::fmt;
 use std::str::FromStr;
-use pubgrub::version::Version;
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, serde::Serialize, serde::Deserialize)]
 pub struct OpamVersion(pub String);
@@ -196,22 +195,6 @@ impl PartialOrd for OpamVersion {
     }
 }
 
-impl Version for OpamVersion {
-    /// The “lowest” version is defined as an empty string.
-    fn lowest() -> Self {
-        OpamVersion(String::new())
-    }
-    /// For bumping we simply append ".1" to the version string.
-    fn bump(&self) -> Self {
-        let new_version = if self.0.is_empty() {
-            "1".to_string()
-        } else {
-            format!("{}.1", self.0)
-        };
-        OpamVersion(new_version)
-    }
-}
-
 impl FromStr for OpamVersion {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -300,15 +283,6 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(sorted_versions, expected_order);
-    }
-
-    #[test]
-    fn test_bump_and_lowest() {
-        let lowest = OpamVersion::lowest();
-        let version = OpamVersion("1.0".to_string());
-        let bumped = version.bump();
-        assert!(lowest < version);
-        assert_eq!(bumped.to_string(), "1.0.1".to_string());
     }
 
     #[test]
