@@ -169,6 +169,17 @@ mod tests {
     }
 
     #[test]
+    fn test_package_formula_and_error() -> Result<(), Box<dyn Error>> {
+        let result = solve_repo(
+            Package::from_str("package-formula-and-error").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        );
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[test]
     fn test_package_formula_or() -> Result<(), Box<dyn Error>> {
         solve_repo(
             Package::from_str("package-formula-or").unwrap(),
@@ -267,6 +278,18 @@ mod tests {
         Ok(())
     }
 
+    // TODO look at and encoding
+    #[test]
+    fn test_filtered_package_formula_and_error() -> Result<(), Box<dyn Error>> {
+        let result = solve_repo(
+            Package::from_str("filtered-package-formula-and-error").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        );
+        assert!(result.is_err());
+        Ok(())
+    }
+
     // TODO look at or encoding
     #[test]
     fn test_filtered_package_formula_or() -> Result<(), Box<dyn Error>> {
@@ -284,6 +307,16 @@ mod tests {
         solve_repo(
             Package::from_str("dune").unwrap(),
             "3.17.2".parse::<OpamVersion>().unwrap(),
+            "./opam-repository/packages",
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_opam_repository_ocaml_variants() -> Result<(), Box<dyn Error>> {
+        solve_repo(
+            Package::from_str("ocaml-variants").unwrap(),
+            "5.3.1+trunk".parse::<OpamVersion>().unwrap(),
             "./opam-repository/packages",
         )?;
         Ok(())

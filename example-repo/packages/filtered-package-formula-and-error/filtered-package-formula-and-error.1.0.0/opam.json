@@ -1,0 +1,22 @@
+{
+  "depends": [
+    {
+      "val": "A",
+      "conditions": [
+        {
+          "logop": "and",
+          "lhs": {
+            "group": [
+              {
+                "logop": "or",
+                "lhs": { "id": "test" },
+                "rhs": { "pfxop": "not", "arg": { "id": "test" } }
+              }
+            ]
+          },
+          "rhs": { "prefix_relop": "eq", "arg": "2.0.0" }
+        }
+      ]
+    }
+  ]
+}

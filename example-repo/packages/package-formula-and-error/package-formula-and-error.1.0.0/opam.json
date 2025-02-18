@@ -1,0 +1,19 @@
+{
+  "depends": [
+    {
+      "group": [
+        {
+          "logop": "and",
+          "lhs": {
+            "val": "A",
+            "conditions": [ { "prefix_relop": "eq", "arg": "2.0.0" } ]
+          },
+          "rhs": {
+            "val": "D",
+            "conditions": [ { "prefix_relop": "eq", "arg": "2.0.0" } ]
+          }
+        }
+      ]
+    }
+  ]
+}
