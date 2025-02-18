@@ -1,5 +1,6 @@
 use pubgrub::range::Range;
 use core::fmt::Display;
+use std::cell::Cell;
 use std::hash::{Hash, Hasher};
 
 use crate::opam_version::OpamVersion;
@@ -9,6 +10,7 @@ pub type PackageName = String;
 
 pub struct Index {
     pub repo: String,
+    pub debug: Cell<bool>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -29,7 +31,6 @@ impl Hash for HashedRange {
 
 impl Display for HashedRange {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Delegate to the Display implementation of the inner Range.
         write!(f, "{}", self.0)
     }
 }
@@ -120,15 +121,18 @@ impl Display for PackageFormula {
 }
 
 impl Index {
-    /// Empty new index.
     pub fn new(repo: String) -> Self {
         Self {
             repo,
+            debug : false.into()
         }
     }
 
-    /// List existing versions for a given package with newest versions first.
     pub fn available_versions(&self, package: &PackageName) -> Vec<OpamVersion> {
         available_versions_from_repo(self.repo.as_str(), package).unwrap()
+    }
+
+    pub fn set_debug(&self, flag: bool) {
+        self.debug.set(flag);
     }
 }

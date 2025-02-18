@@ -12,6 +12,7 @@ use std::str::FromStr;
 
 fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<dyn Error>> {
     let index = Index::new(repo.to_string());
+    index.set_debug(true);
 
     let sol: SelectedDependencies<Package, OpamVersion> =
         match pubgrub::solver::resolve(&index, pkg, version) {
@@ -23,6 +24,8 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<
             }
             Err(err) => panic!("{:?}", err),
         };
+
+    index.set_debug(false);
 
     fn get_resolved_deps<'a>(
         index: &'a Index,
@@ -65,7 +68,7 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<
         }
     }
 
-    println!("\n\nSolution Set:");
+    println!("\nSolution Set:");
     for (package, version) in &sol {
         match package {
             Package::Base(name) => {
@@ -91,7 +94,7 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<
         }
     }
 
-    println!("\n\nResolved Dependency Graph:");
+    println!("\nResolved Dependency Graph:");
     for ((name, version), dependents) in resolved_graph {
         print!("\t({}, {})", name, version);
         if dependents.len() > 0 {
@@ -124,11 +127,47 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_package_formulas_a100() -> Result<(), Box<dyn Error>> {
+    fn test_simple() -> Result<(), Box<dyn Error>> {
         solve_repo(
             Package::from_str("A").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
-            "./package-formula-repo/packages",
+            "./example-repo/packages",
+        )
+    }
+
+    #[test]
+    fn test_package_formula() -> Result<(), Box<dyn Error>> {
+        solve_repo(
+            Package::from_str("package-formula").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        )
+    }
+
+    #[test]
+    fn test_package_formula_and() -> Result<(), Box<dyn Error>> {
+        solve_repo(
+            Package::from_str("package-formula-and").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        )
+    }
+
+    #[test]
+    fn test_package_formula_or() -> Result<(), Box<dyn Error>> {
+        solve_repo(
+            Package::from_str("package-formula-or").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        )
+    }
+
+    #[test]
+    fn test_package_formula_or2() -> Result<(), Box<dyn Error>> {
+        solve_repo(
+            Package::from_str("package-formula-or").unwrap(),
+            "2.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
         )
     }
 

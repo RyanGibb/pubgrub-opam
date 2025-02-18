@@ -93,51 +93,70 @@ impl DependencyProvider<Package, OpamVersion> for Index {
     ) -> Result<Dependencies<Package, OpamVersion>, Box<dyn std::error::Error>> {
         match package {
             Package::Base(pkg) => {
-                print!("({}, {})", package, version);
                 let formulas = parse_dependencies_for_package_version(self.repo.as_str(), pkg, version.to_string().as_str()).unwrap();
                 let deps = from_formulas(&formulas);
-                if deps.len() > 0 {
-                    print!(" -> ")
-                }
-                let mut first = true;
-                for (package, range) in deps.clone() {
-                    if !first {
-                        print!(", ");
+                if self.debug.get() {
+                    print!("({}, {})", package, version);
+                    if deps.len() > 0 {
+                        print!(" -> ")
                     }
-                    print!("({}, {})", package, range);
-                    first = false;
+                    let mut first = true;
+                    for (package, range) in deps.clone() {
+                        if !first {
+                            print!(", ");
+                        }
+                        print!("({}, {})", package, range);
+                        first = false;
+                    }
+                    println!();
                 }
-                println!();
                 Ok(Dependencies::Known(deps))
             }
             Package::Lor { lhs, rhs } => {
-                // println!();
-                match version {
+                let deps = match version {
                     OpamVersion(ver) => match ver.as_str() {
-                        "lhs" => Ok(Dependencies::Known(from_formula(*&lhs))),
-                        "rhs" => Ok(Dependencies::Known(from_formula(*&rhs))),
+                        "lhs" => from_formula(*&lhs),
+                        "rhs" => from_formula(*&rhs),
                         _ => panic!("Unknown OR version {}", version),
                     }
+                };
+                if self.debug.get() {
+                    print!("({}, {})", package, version);
+                    if deps.len() > 0 {
+                        print!(" -> ")
+                    }
+                    let mut first = true;
+                    for (package, range) in deps.clone() {
+                        if !first {
+                            print!(", ");
+                        }
+                        print!("({}, {})", package, range);
+                        first = false;
+                    }
+                    println!();
                 }
+                Ok(Dependencies::Known(deps))
             }
             Package::Proxy { name, formula } => {
                 let deps = from_version_formula(name, version, formula);
-                // if deps.len() > 0 {
-                //     print!(" -> ")
-                // }
-                // let mut first = true;
-                // for (package, range) in deps.clone() {
-                //     if !first {
-                //         print!(", ");
-                //     }
-                //     print!("({}, {})", package, range);
-                //     first = false;
-                // }
-                // println!();
+                if self.debug.get() {
+                    print!("({}, {})", package, version);
+                    if deps.len() > 0 {
+                        print!(" -> ")
+                    }
+                    let mut first = true;
+                    for (package, range) in deps.clone() {
+                        if !first {
+                            print!(", ");
+                        }
+                        print!("({}, {})", package, range);
+                        first = false;
+                    }
+                    println!();
+                }
                 Ok(Dependencies::Known(deps))
             }
             Package::Var(_) => {
-                // println!();
                 Ok(Dependencies::Known(Map::default()))
             }
         }
