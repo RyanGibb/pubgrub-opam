@@ -88,7 +88,7 @@ impl Display for VersionFormula {
                 write!(f, "({} < {})", binary.lhs, binary.rhs)
             }
             VersionFormula::Neq(binary) => {
-                write!(f, "({} _= {})", binary.lhs, binary.rhs)
+                write!(f, "({} != {})", binary.lhs, binary.rhs)
             }
             VersionFormula::And(binary) => {
                 write!(f, "({} & {})", binary.lhs, binary.rhs)
