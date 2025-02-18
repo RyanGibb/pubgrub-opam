@@ -1,0 +1,12 @@
+{
+  "depends": [
+    {
+      "val": "B",
+      "conditions": [ { "prefix_relop": "eq", "arg": "2.0.0" } ]
+    },
+    {
+      "val": "C",
+      "conditions": [ { "prefix_relop": "eq", "arg": "2.0.0" } ]
+    }
+  ]
+}

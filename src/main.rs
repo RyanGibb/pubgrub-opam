@@ -16,14 +16,14 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<Selected
 
     let sol: SelectedDependencies<Package, OpamVersion> =
         match pubgrub::solver::resolve(&index, pkg, version) {
-            Ok(sol) => sol,
+            Ok(sol) => Ok(sol),
             Err(PubGrubError::NoSolution(mut derivation_tree)) => {
                 derivation_tree.collapse_no_versions();
                 eprintln!("{}", DefaultStringReporter::report(&derivation_tree));
-                panic!("failed to find a solution");
+                Err(PubGrubError::NoSolution(derivation_tree))
             }
             Err(err) => panic!("{:?}", err),
-        };
+        }?;
 
     index.set_debug(false);
 
@@ -128,72 +128,95 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_simple() -> Result<(), Box<dyn Error>> {
-        let _ = solve_repo(
+    fn test_simple_solve() -> Result<(), Box<dyn Error>> {
+        solve_repo(
             Package::from_str("A").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_simple_error() -> Result<(), Box<dyn Error>> {
+        let result = solve_repo(
+            Package::from_str("A").unwrap(),
+            "2.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
         );
+        assert!(result.is_err());
         Ok(())
     }
 
     #[test]
     fn test_package_formula() -> Result<(), Box<dyn Error>> {
-        let _ = solve_repo(
+        solve_repo(
             Package::from_str("package-formula").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
-        );
+        )?;
         Ok(())
     }
 
     #[test]
     fn test_package_formula_and() -> Result<(), Box<dyn Error>> {
-        let _ = solve_repo(
+        solve_repo(
             Package::from_str("package-formula-and").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
-        );
+        )?;
         Ok(())
     }
 
     #[test]
     fn test_package_formula_or() -> Result<(), Box<dyn Error>> {
-        let _ = solve_repo(
+        solve_repo(
             Package::from_str("package-formula-or").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
-        );
+        )?;
         Ok(())
     }
 
     #[test]
     fn test_package_formula_or2() -> Result<(), Box<dyn Error>> {
-        let _ = solve_repo(
+        solve_repo(
             Package::from_str("package-formula-or").unwrap(),
             "2.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
-        );
+        )?;
         Ok(())
     }
 
     #[test]
     fn test_package_formula_or3() -> Result<(), Box<dyn Error>> {
-        let _ = solve_repo(
+        solve_repo(
             Package::from_str("package-formula-or").unwrap(),
             "3.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
-        );
+        )?;
         Ok(())
     }
 
     #[test]
-    fn test_package_formula_and_or() -> Result<(), Box<dyn Error>> {
-        let _ = solve_repo(
-            Package::from_str("package-formula-and-or").unwrap(),
+    fn test_package_formula_or_error() -> Result<(), Box<dyn Error>> {
+        let result = solve_repo(
+            Package::from_str("package-formula-or-error").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
         );
+        assert!(result.is_err());
+        Ok(())
+    }
+
+
+    #[test]
+    fn test_package_formula_and_or() -> Result<(), Box<dyn Error>> {
+        solve_repo(
+            Package::from_str("package-formula-and-or").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        )?;
         Ok(())
     }
 
@@ -258,11 +281,11 @@ mod tests {
 
     #[test]
     fn test_opam_repository_dune() -> Result<(), Box<dyn Error>> {
-        let _ = solve_repo(
+        solve_repo(
             Package::from_str("dune").unwrap(),
             "3.17.2".parse::<OpamVersion>().unwrap(),
             "./opam-repository/packages",
-        );
+        )?;
         Ok(())
     }
 }

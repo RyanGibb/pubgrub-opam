@@ -1,0 +1,14 @@
+{
+  "depends": [
+    {
+      "val": "D",
+      "conditions": [
+        {
+          "logop": "and",
+          "lhs": { "prefix_relop": "geq", "arg": "3.0.0" },
+          "rhs": { "prefix_relop": "lt", "arg": "4.0.0" }
+        }
+      ]
+    }
+  ]
+}
