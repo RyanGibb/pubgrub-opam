@@ -242,6 +242,18 @@ mod tests {
         Ok(())
     }
 
+    // TODO
+    #[test]
+    fn test_filtered_package_formula_variable_string() -> Result<(), Box<dyn Error>> {
+        let sol = solve_repo(
+            Package::from_str("filtered-package-formula-variable-string").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        )?;
+        assert_eq!(sol.get(&Package::Var("os-family".to_string())), Some("debian".parse::<OpamVersion>().as_ref().unwrap()));
+        Ok(())
+    }
+
     #[test]
     fn test_filtered_package_formula_and_variable() -> Result<(), Box<dyn Error>> {
         let sol = solve_repo(

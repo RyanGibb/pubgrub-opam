@@ -1,0 +1,3 @@
+depends: [
+  "A" { os-family = "debian" }
+]
