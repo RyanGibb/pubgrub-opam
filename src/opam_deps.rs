@@ -348,12 +348,12 @@ fn from_version_formula(name: &String, version: &OpamVersion, formula: &VersionF
         },
         VersionFormula::And(Binary { lhs, rhs }) => match version {
             OpamVersion(ver) => match ver.as_str() {
-                "lhs" => map,
-                "rhs" => {
+                "lhs" => {
                     let left = from_version_formula(name, version, lhs);
                     let right = from_version_formula(name, version, rhs);
                     merge_constraints(left, right)
                 }
+                "rhs" => map,
                 _ => panic!("Unknown Proxy version {}", version),
             }
         }

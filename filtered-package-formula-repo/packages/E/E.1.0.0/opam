@@ -1,6 +1,0 @@
-opam-version: "2.0"
-name: "E"
-version: "1.0.0"
-depends: [
-  "C" {"1" | (!test & (?test & (>"1.0.0" & ("0"<build)<"4" & "true")))}
-]

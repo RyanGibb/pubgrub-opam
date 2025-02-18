@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::error::Error;
 use std::str::FromStr;
 
-fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<dyn Error>> {
+fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<SelectedDependencies<Package, OpamVersion>, Box<dyn Error>> {
     let index = Index::new(repo.to_string());
     index.set_debug(true);
 
@@ -111,15 +111,16 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<
         println!()
     }
 
-    Ok(())
+    Ok(sol)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    solve_repo(
+    let _ = solve_repo(
         Package::from_str("A").unwrap(),
         "1.0.0".parse::<OpamVersion>().unwrap(),
         "./example-repo/packages",
-    )
+    );
+    Ok(())
 }
 
 #[cfg(test)]
@@ -128,139 +129,140 @@ mod tests {
 
     #[test]
     fn test_simple() -> Result<(), Box<dyn Error>> {
-        solve_repo(
+        let _ = solve_repo(
             Package::from_str("A").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
-        )
+        );
+        Ok(())
     }
 
     #[test]
     fn test_package_formula() -> Result<(), Box<dyn Error>> {
-        solve_repo(
+        let _ = solve_repo(
             Package::from_str("package-formula").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
-        )
+        );
+        Ok(())
     }
 
     #[test]
     fn test_package_formula_and() -> Result<(), Box<dyn Error>> {
-        solve_repo(
+        let _ = solve_repo(
             Package::from_str("package-formula-and").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
-        )
+        );
+        Ok(())
     }
 
     #[test]
     fn test_package_formula_or() -> Result<(), Box<dyn Error>> {
-        solve_repo(
+        let _ = solve_repo(
             Package::from_str("package-formula-or").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
-        )
+        );
+        Ok(())
     }
 
     #[test]
     fn test_package_formula_or2() -> Result<(), Box<dyn Error>> {
-        solve_repo(
+        let _ = solve_repo(
             Package::from_str("package-formula-or").unwrap(),
             "2.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
-        )
-    }
-
-    #[test]
-    fn test_package_formulas_a110() -> Result<(), Box<dyn Error>> {
-        solve_repo(
-            Package::from_str("A").unwrap(),
-            "1.1.0".parse::<OpamVersion>().unwrap(),
-            "./package-formula-repo/packages",
-        )
-    }
-
-    #[test]
-    fn test_package_formulas_a120() -> Result<(), Box<dyn Error>> {
-        solve_repo(
-            Package::from_str("A").unwrap(),
-            "1.2.0".parse::<OpamVersion>().unwrap(),
-            "./package-formula-repo/packages",
-        )
-    }
-
-    #[test]
-    fn test_package_formulas_a130() -> Result<(), Box<dyn Error>> {
-        solve_repo(
-            Package::from_str("A").unwrap(),
-            "1.3.0".parse::<OpamVersion>().unwrap(),
-            "./package-formula-repo/packages",
-        )
-    }
-
-    #[test]
-    fn test_package_formulas_a200() -> Result<(), Box<dyn Error>> {
-        solve_repo(
-            Package::from_str("A").unwrap(),
-            "2.0.0".parse::<OpamVersion>().unwrap(),
-            "./package-formula-repo/packages",
-        )
-    }
-
-    #[test]
-    fn test_package_formulas_a210() -> Result<(), Box<dyn Error>> {
-        solve_repo(
-            Package::from_str("A").unwrap(),
-            "2.1.0".parse::<OpamVersion>().unwrap(),
-            "./package-formula-repo/packages",
-        )
-    }
-
-    #[test]
-    fn test_package_formulas_a300() -> Result<(), Box<dyn Error>> {
-        solve_repo(
-            Package::from_str("A").unwrap(),
-            "3.0.0".parse::<OpamVersion>().unwrap(),
-            "./package-formula-repo/packages",
-        )
-    }
-
-    // TODO implement variables
-    #[test]
-    #[should_panic]
-    fn test_filtered_package_formula_variables() -> () {
-        let _ = solve_repo(
-            Package::from_str("A").unwrap(),
-            "1.0.0".parse::<OpamVersion>().unwrap(),
-            "./filtered-package-formula-repo/packages",
         );
-        ()
+        Ok(())
     }
 
     #[test]
-    fn test_filtered_package_formula_simple() -> Result<(), Box<dyn Error>> {
-        solve_repo(
-            Package::from_str("D").unwrap(),
+    fn test_package_formula_or3() -> Result<(), Box<dyn Error>> {
+        let _ = solve_repo(
+            Package::from_str("package-formula-or").unwrap(),
+            "3.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_package_formula_and_or() -> Result<(), Box<dyn Error>> {
+        let _ = solve_repo(
+            Package::from_str("package-formula-and-or").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
-            "./filtered-package-formula-repo/packages",
-        )
+            "./example-repo/packages",
+        );
+        Ok(())
     }
 
     #[test]
-    fn test_filtered_package_formula_complex() -> Result<(), Box<dyn Error>> {
-        solve_repo(
-            Package::from_str("E").unwrap(),
+    fn test_filtered_package_formula_variable() -> Result<(), Box<dyn Error>> {
+        let sol = solve_repo(
+            Package::from_str("filtered-package-formula-variable").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
-            "./filtered-package-formula-repo/packages",
-        )
+            "./example-repo/packages",
+        )?;
+        assert_eq!(sol.get(&Package::from_str("D").unwrap()), Some("2.0.0".parse::<OpamVersion>().as_ref().unwrap()));
+        Ok(())
     }
 
     #[test]
-    fn test_opam_repository() -> Result<(), Box<dyn Error>> {
-        solve_repo(
+    fn test_filtered_package_formula_and_variable() -> Result<(), Box<dyn Error>> {
+        let sol = solve_repo(
+            Package::from_str("filtered-package-formula-and-variable").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        )?;
+        assert_eq!(sol.get(&Package::Base("A".to_string())), Some("1.0.0".parse::<OpamVersion>().as_ref().unwrap()));
+        assert_eq!(sol.get(&Package::Var("test".to_string())), Some("false".parse::<OpamVersion>().as_ref().unwrap()));
+        assert_eq!(sol.get(&Package::Var("build".to_string())), Some("false".parse::<OpamVersion>().as_ref().unwrap()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_filtered_package_formula_variable_version() -> Result<(), Box<dyn Error>> {
+        let sol = solve_repo(
+            Package::from_str("filtered-package-formula-variable-version").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        )?;
+        assert_eq!(sol.get(&Package::from_str("D").unwrap()), Some("3.0.0".parse::<OpamVersion>().as_ref().unwrap()));
+        Ok(())
+    }
+
+    // TODO look at and encoding
+    #[test]
+    fn test_filtered_package_formula_and() -> Result<(), Box<dyn Error>> {
+        let sol = solve_repo(
+            Package::from_str("filtered-package-formula-and").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        )?;
+        assert_eq!(sol.get(&Package::from_str("A").unwrap()), Some("1.0.0".parse::<OpamVersion>().as_ref().unwrap()));
+        Ok(())
+    }
+
+    // TODO look at or encoding
+    #[test]
+    fn test_filtered_package_formula_or() -> Result<(), Box<dyn Error>> {
+        let sol = solve_repo(
+            Package::from_str("filtered-package-formula-or").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        )?;
+        assert_eq!(sol.get(&Package::from_str("A").unwrap()), Some("1.0.0".parse::<OpamVersion>().as_ref().unwrap()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_opam_repository_dune() -> Result<(), Box<dyn Error>> {
+        let _ = solve_repo(
             Package::from_str("dune").unwrap(),
             "3.17.2".parse::<OpamVersion>().unwrap(),
             "./opam-repository/packages",
-        )
+        );
+        Ok(())
     }
 }

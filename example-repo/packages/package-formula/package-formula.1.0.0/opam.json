@@ -1,0 +1,40 @@
+{
+  "depends": [
+    {
+      "logop": "and",
+      "lhs": {
+        "val": "D",
+        "conditions": [ { "prefix_relop": "eq", "arg": "1.0.0" } ]
+      },
+      "rhs": {
+        "group": [
+          {
+            "logop": "or",
+            "lhs": "B",
+            "rhs": {
+              "val": "C",
+              "conditions": [
+                {
+                  "logop": "and",
+                  "lhs": {
+                    "pfxop": "not",
+                    "arg": {
+                      "group": [
+                        {
+                          "logop": "and",
+                          "lhs": { "prefix_relop": "gt", "arg": "2" },
+                          "rhs": { "prefix_relop": "lt", "arg": "3.5" }
+                        }
+                      ]
+                    }
+                  },
+                  "rhs": { "prefix_relop": "neq", "arg": "5.1" }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

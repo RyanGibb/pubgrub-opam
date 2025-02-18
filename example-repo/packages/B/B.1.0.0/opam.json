@@ -2,7 +2,13 @@
   "depends": [
     {
       "val": "D",
-      "conditions": [ { "prefix_relop": "lt", "arg": "3.0.0" } ]
+      "conditions": [
+        {
+          "logop": "and",
+          "lhs": { "prefix_relop": "geq", "arg": "1.0.0" },
+          "rhs": { "prefix_relop": "lt", "arg": "3.0.0" }
+        }
+      ]
     }
   ],
   "version": "1.0.0",

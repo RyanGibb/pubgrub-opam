@@ -1,0 +1,4 @@
+depends: [
+  "C" { test }
+  "B" { !build }
+]

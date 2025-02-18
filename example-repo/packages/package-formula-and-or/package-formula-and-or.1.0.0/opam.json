@@ -1,0 +1,52 @@
+{
+  "depends": [
+    {
+      "logop": "or",
+      "lhs": {
+        "group": [
+          {
+            "logop": "and",
+            "lhs": {
+              "val": "D",
+              "conditions": [ { "prefix_relop": "eq", "arg": "4.0.0" } ]
+            },
+            "rhs": {
+              "val": "B",
+              "conditions": [ { "prefix_relop": "eq", "arg": "1.0.0" } ]
+            }
+          }
+        ]
+      },
+      "rhs": {
+        "group": [
+          {
+            "logop": "and",
+            "lhs": {
+              "group": [
+                {
+                  "logop": "or",
+                  "lhs": {
+                    "val": "D",
+                    "conditions": [
+                      { "prefix_relop": "geq", "arg": "2.0.0" }
+                    ]
+                  },
+                  "rhs": {
+                    "val": "B",
+                    "conditions": [
+                      { "prefix_relop": "eq", "arg": "1.0.0" }
+                    ]
+                  }
+                }
+              ]
+            },
+            "rhs": {
+              "val": "C",
+              "conditions": [ { "prefix_relop": "eq", "arg": "1.0.0" } ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

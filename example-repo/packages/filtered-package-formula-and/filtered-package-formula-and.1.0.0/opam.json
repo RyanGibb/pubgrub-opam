@@ -1,0 +1,22 @@
+{
+  "depends": [
+    {
+      "val": "A",
+      "conditions": [
+        {
+          "logop": "or",
+          "lhs": {
+            "group": [
+              {
+                "logop": "and",
+                "lhs": { "id": "test" },
+                "rhs": { "id": "build" }
+              }
+            ]
+          },
+          "rhs": { "pfxop": "not", "arg": { "id": "test" } }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "depends": [
+    { "val": "C", "conditions": [ { "id": "test" } ] },
+    {
+      "val": "B",
+      "conditions": [ { "pfxop": "not", "arg": { "id": "build" } } ]
+    }
+  ]
+}

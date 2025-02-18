@@ -1,0 +1,14 @@
+{
+  "depends": [
+    {
+      "val": "A",
+      "conditions": [
+        {
+          "logop": "and",
+          "lhs": { "pfxop": "not", "arg": { "id": "test" } },
+          "rhs": { "pfxop": "not", "arg": { "id": "build" } }
+        }
+      ]
+    }
+  ]
+}
