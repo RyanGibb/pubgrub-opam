@@ -6,7 +6,7 @@ use pubgrub::type_aliases::SelectedDependencies;
 use pubgrub_opam::index::Index;
 use pubgrub_opam::opam_deps::Package;
 use pubgrub_opam::opam_version::OpamVersion;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::error::Error;
 use std::str::FromStr;
 
@@ -65,7 +65,6 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<
         }
     }
 
-
     println!("\n\nSolution Set:");
     for (package, version) in &sol {
         match package {
@@ -75,28 +74,17 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<(), Box<
             Package::Var(name) => {
                 println!("\t{} = {}", name, version);
             }
-            // Package::Lor { lhs, rhs } => {
-            //     match version {
-            //         OpamVersion(ver) => match ver.as_str() {
-            //             "lhs" => println!("\t{}", lhs),
-            //             "rhs" => println!("\t{}", rhs),
-            //             _ => panic!("Unknown OR version {}", version),
-            //         }
-            //     }
-            // }
-            // Package::Proxy { name : _, formula : _ } => {
-            //     println!("\t{}, {}", package, version);
-            // }
             _ => ()
         }
     }
 
-    let mut resolved_graph: HashMap<(String, &OpamVersion), HashSet<(String, &OpamVersion)>> =
-        HashMap::new();
+    let mut resolved_graph: BTreeMap<(String, &OpamVersion), Vec<(String, &OpamVersion)>> =
+        BTreeMap::new();
     for (package, version) in &sol {
         match package {
             Package::Base(name) => {
-                let deps = get_resolved_deps(&index, &sol, package.clone(), version);
+                let mut deps = get_resolved_deps(&index, &sol, package.clone(), version).into_iter().collect::<Vec<_>>();
+                deps.sort_by(|(p1, _v1), (p2, _v2)| p1.cmp(p2));
                 resolved_graph.insert((name.clone(), version), deps);
             }
             _ => {}
