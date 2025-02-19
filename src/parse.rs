@@ -161,6 +161,7 @@ fn normalize_negation(expr: VersionFormula) -> VersionFormula {
             VersionFormula::Version(HashedRange(version.0.complement()))
         }
         VersionFormula::Variable(variable) => VersionFormula::Not(variable),
+        VersionFormula::Not(variable) => VersionFormula::Variable(variable),
         // De Morgan’s laws
         VersionFormula::And(Binary { lhs, rhs }) => VersionFormula::Or(Binary {
             lhs: Box::new(normalize_negation(*lhs)),

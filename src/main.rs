@@ -307,6 +307,28 @@ mod tests {
     }
 
     #[test]
+    fn test_filtered_package_formula_or_error1() -> Result<(), Box<dyn Error>> {
+        let result = solve_repo(
+            Package::from_str("filtered-package-formula-or-error").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        );
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_filtered_package_formula_or_error2() -> Result<(), Box<dyn Error>> {
+        let result = solve_repo(
+            Package::from_str("filtered-package-formula-or-error").unwrap(),
+            "2.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        );
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[test]
     fn test_opam_repository_dune() -> Result<(), Box<dyn Error>> {
         solve_repo(
             Package::from_str("dune").unwrap(),

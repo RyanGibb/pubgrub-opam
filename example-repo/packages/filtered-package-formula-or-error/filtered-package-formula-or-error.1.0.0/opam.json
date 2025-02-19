@@ -1,0 +1,38 @@
+{
+  "depends": [
+    {
+      "val": "A",
+      "conditions": [
+        {
+          "logop": "and",
+          "lhs": {
+            "group": [
+              {
+                "logop": "or",
+                "lhs": {
+                  "group": [
+                    {
+                      "logop": "or",
+                      "lhs": { "id": "build" },
+                      "rhs": { "id": "test" }
+                    }
+                  ]
+                },
+                "rhs": {
+                  "group": [
+                    {
+                      "logop": "and",
+                      "lhs": { "pfxop": "not", "arg": { "id": "build" } },
+                      "rhs": { "pfxop": "not", "arg": { "id": "test" } }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "rhs": { "prefix_relop": "eq", "arg": "2.0.0" }
+        }
+      ]
+    }
+  ]
+}

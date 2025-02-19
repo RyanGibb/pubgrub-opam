@@ -1,0 +1,3 @@
+depends: [
+  "A" { ((build | test) | (!build & !test)) & = "2.0.0" }
+]
