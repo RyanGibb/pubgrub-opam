@@ -329,6 +329,16 @@ mod tests {
     }
 
     #[test]
+    fn test_filtered_package_formula_equality() -> Result<(), Box<dyn Error>> {
+        solve_repo(
+            Package::from_str("filtered-package-formula-equality").unwrap(),
+            "1.0.0".parse::<OpamVersion>().unwrap(),
+            "./example-repo/packages",
+        )?;
+        Ok(())
+    }
+
+    #[test]
     fn test_opam_repository_dune() -> Result<(), Box<dyn Error>> {
         solve_repo(
             Package::from_str("dune").unwrap(),

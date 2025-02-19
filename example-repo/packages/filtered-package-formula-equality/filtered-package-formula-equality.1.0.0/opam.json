@@ -1,0 +1,10 @@
+{
+  "depends": [
+    {
+      "val": "A",
+      "conditions": [
+        { "relop": "eq", "lhs": { "id": "test" }, "rhs": { "id": "build" } }
+      ]
+    }
+  ]
+}

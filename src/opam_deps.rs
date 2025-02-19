@@ -1,6 +1,6 @@
 use crate::index::{Binary, Index, PackageFormula, VersionFormula};
 use crate::opam_version::OpamVersion;
-use crate::parse::{negate_relop, parse_dependencies_for_package_version, relop_to_range};
+use crate::parse::{negate_relop, parse_dependencies_for_package_version, relop_to_range, RelOp};
 use core::fmt::Display;
 use pubgrub::{Dependencies, DependencyConstraints, DependencyProvider, Map, Range};
 use std::collections::{HashMap, HashSet};
@@ -359,6 +359,42 @@ fn from_proxy_formula(
                 _ => panic!("Unknown Formula version {}", version),
             },
         },
+        VersionFormula::Comparator { relop, binary } => match relop {
+            RelOp::Eq => match version {
+                OpamVersion(ver) => match ver.as_str() {
+                    "lhs" => {
+                        let lhs = from_version_formula(name, &*binary.lhs);
+                        let rhs = from_version_formula(name, &*binary.rhs);
+                        merge_constraints(lhs, rhs)
+                    }
+                    "rhs" => {
+                        let lhs = from_version_formula(name, &negate_formula(*binary.lhs.clone()));
+                        let rhs = from_version_formula(name, &negate_formula(*binary.rhs.clone()));
+                        merge_constraints(lhs, rhs)
+                    }
+                    _ => panic!("Unknown Formula version {}", version),
+                },
+            },
+            RelOp::Neq => match version {
+                OpamVersion(ver) => match ver.as_str() {
+                    "lhs" => {
+                        let lhs = from_version_formula(name, &*binary.lhs);
+                        let rhs = from_version_formula(name, &negate_formula(*binary.rhs.clone()));
+                        merge_constraints(lhs, rhs)
+                    }
+                    "rhs" => {
+                        let lhs = from_version_formula(name, &negate_formula(*binary.lhs.clone()));
+                        let rhs = from_version_formula(name, &*binary.rhs);
+                        merge_constraints(lhs, rhs)
+                    }
+                    _ => panic!("Unknown Formula version {}", version),
+                },
+            },
+            _ => match name {
+                Some(name) => panic!("invalid operator for {}: {}", name, formula),
+                None => panic!("invalid operator for {}", formula),
+            },
+        },
         _ => panic!("This formula shouldn't be in a proxy: {}", formula),
     }
 }
@@ -432,10 +468,18 @@ fn from_version_formula(
                     let range = relop_to_range(relop, ver);
                     map.insert(Package::Var(var.to_string()), range)
                 }
-                // TODO non-terminal comparators
-                _ => match name {
-                    Some(name) => panic!("invalid operator for {}: {}", name, formula),
-                    None => panic!("invalid operator for {}", formula),
+                _ => match relop {
+                    RelOp::Eq | RelOp::Neq => map.insert(
+                        Package::Proxy {
+                            name: name.cloned(),
+                            formula: Box::new(formula.clone()),
+                        },
+                        Range::full(),
+                    ),
+                    _ => match name {
+                        Some(name) => panic!("invalid operator for {}: {}", name, formula),
+                        None => panic!("invalid operator for {}", formula),
+                    },
                 },
             };
             map
