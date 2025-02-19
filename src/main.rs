@@ -348,13 +348,13 @@ mod tests {
         Ok(())
     }
 
-    // #[test]
-    // fn test_opam_repository_ocaml_variants() -> Result<(), Box<dyn Error>> {
-    //     solve_repo(
-    //         Package::from_str("ocaml-variants").unwrap(),
-    //         "5.3.1+trunk".parse::<OpamVersion>().unwrap(),
-    //         "./opam-repository/packages",
-    //     )?;
-    //     Ok(())
-    // }
+    #[test]
+    fn test_opam_repository_ocaml_variants() -> Result<(), Box<dyn Error>> {
+        solve_repo(
+            Package::from_str("ocaml-variants").unwrap(),
+            "5.3.1+trunk".parse::<OpamVersion>().unwrap(),
+            "./opam-repository/packages",
+        )?;
+        Ok(())
+    }
 }
