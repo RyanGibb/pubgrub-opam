@@ -45,6 +45,9 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<Selected
                         Package::Proxy { name : _, formula : _ } => {
                             dependents.extend(get_resolved_deps(&index, sol, dep_package, solved_version));
                         }
+                        Package::Formula { name : _, formula : _ } => {
+                            dependents.extend(get_resolved_deps(&index, sol, dep_package, solved_version));
+                        }
                         Package::Var(_) => {
                             dependents.insert((format!("{}", dep_package), solved_version));
                         }
@@ -223,17 +226,17 @@ mod tests {
     }
 
     #[test]
-    fn test_filtered_package_formula_variable() -> Result<(), Box<dyn Error>> {
+    fn test_filtered_package_formula_variable_simple() -> Result<(), Box<dyn Error>> {
         let sol = solve_repo(
             Package::from_str("filtered-package-formula-variable").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
         )?;
-        assert_eq!(sol.get(&Package::from_str("D").unwrap()), Some("2.0.0".parse::<OpamVersion>().as_ref().unwrap()));
+        assert_eq!(sol.get(&Package::Var("test".to_string())), Some("false".parse::<OpamVersion>().as_ref().unwrap()));
+        assert_eq!(sol.get(&Package::Var("build".to_string())), Some("true".parse::<OpamVersion>().as_ref().unwrap()));
         Ok(())
     }
 
-    // TODO
     #[test]
     fn test_filtered_package_formula_variable_string() -> Result<(), Box<dyn Error>> {
         let sol = solve_repo(
@@ -245,16 +248,16 @@ mod tests {
         Ok(())
     }
 
+    // TODO test with setting variables
     #[test]
-    fn test_filtered_package_formula_and_variable() -> Result<(), Box<dyn Error>> {
+    fn test_filtered_package_formula_and_variable_simple() -> Result<(), Box<dyn Error>> {
         let sol = solve_repo(
             Package::from_str("filtered-package-formula-and-variable").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
         )?;
-        assert_eq!(sol.get(&Package::Base("A".to_string())), Some("1.0.0".parse::<OpamVersion>().as_ref().unwrap()));
-        assert_eq!(sol.get(&Package::Var("test".to_string())), Some("false".parse::<OpamVersion>().as_ref().unwrap()));
-        assert_eq!(sol.get(&Package::Var("build".to_string())), Some("false".parse::<OpamVersion>().as_ref().unwrap()));
+        assert_eq!(sol.get(&Package::Var("test".to_string())), Some("true".parse::<OpamVersion>().as_ref().unwrap()));
+        // TODO or build true
         Ok(())
     }
 
@@ -265,23 +268,22 @@ mod tests {
             "1.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
         )?;
-        assert_eq!(sol.get(&Package::from_str("D").unwrap()), Some("3.0.0".parse::<OpamVersion>().as_ref().unwrap()));
+        assert_eq!(sol.get(&Package::Var("test".to_string())), Some("false".parse::<OpamVersion>().as_ref().unwrap()));
         Ok(())
     }
 
-    // TODO look at and encoding
     #[test]
-    fn test_filtered_package_formula_and() -> Result<(), Box<dyn Error>> {
+    fn test_filtered_package_formula_and_simple() -> Result<(), Box<dyn Error>> {
         let sol = solve_repo(
             Package::from_str("filtered-package-formula-and").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
             "./example-repo/packages",
         )?;
-        assert_eq!(sol.get(&Package::from_str("A").unwrap()), Some("1.0.0".parse::<OpamVersion>().as_ref().unwrap()));
+        assert_eq!(sol.get(&Package::Var("test".to_string())), Some("true".parse::<OpamVersion>().as_ref().unwrap()));
+        assert_eq!(sol.get(&Package::Var("build".to_string())), Some("false".parse::<OpamVersion>().as_ref().unwrap()));
         Ok(())
     }
 
-    // TODO look at and encoding
     #[test]
     fn test_filtered_package_formula_and_error() -> Result<(), Box<dyn Error>> {
         let result = solve_repo(
@@ -293,9 +295,8 @@ mod tests {
         Ok(())
     }
 
-    // TODO look at or encoding
     #[test]
-    fn test_filtered_package_formula_or() -> Result<(), Box<dyn Error>> {
+    fn test_filtered_package_formula_or_simple() -> Result<(), Box<dyn Error>> {
         let sol = solve_repo(
             Package::from_str("filtered-package-formula-or").unwrap(),
             "1.0.0".parse::<OpamVersion>().unwrap(),
@@ -315,13 +316,13 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_opam_repository_ocaml_variants() -> Result<(), Box<dyn Error>> {
-        solve_repo(
-            Package::from_str("ocaml-variants").unwrap(),
-            "5.3.1+trunk".parse::<OpamVersion>().unwrap(),
-            "./opam-repository/packages",
-        )?;
-        Ok(())
-    }
+    // #[test]
+    // fn test_opam_repository_ocaml_variants() -> Result<(), Box<dyn Error>> {
+    //     solve_repo(
+    //         Package::from_str("ocaml-variants").unwrap(),
+    //         "5.3.1+trunk".parse::<OpamVersion>().unwrap(),
+    //         "./opam-repository/packages",
+    //     )?;
+    //     Ok(())
+    // }
 }

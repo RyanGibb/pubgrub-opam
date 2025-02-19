@@ -38,7 +38,9 @@ pub enum OpamPackageFormula {
         lhs: Box<OpamPackageFormula>,
         rhs: Box<OpamPackageFormula>,
     },
-    Group { group: Vec<OpamPackageFormula> },
+    Group {
+        group: Vec<OpamPackageFormula>,
+    },
     Simple {
         #[serde(rename = "val")]
         name: String,
@@ -55,7 +57,7 @@ pub enum UnaryOp {
     // Defined,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum RelOp {
     Eq,
@@ -63,7 +65,7 @@ pub enum RelOp {
     Gt,
     Leq,
     Lt,
-    Neq
+    Neq,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -74,7 +76,9 @@ pub enum OpamVersionFormula {
         lhs: Box<OpamVersionFormula>,
         rhs: Box<OpamVersionFormula>,
     },
-    Group { group: Vec<OpamVersionFormula> },
+    Group {
+        group: Vec<OpamVersionFormula>,
+    },
     PrefixOperator {
         pfxop: UnaryOp,
         arg: Box<OpamVersionFormula>,
@@ -90,7 +94,7 @@ pub enum OpamVersionFormula {
 #[serde(untagged)]
 pub enum FilterOrVersion {
     Version(String),
-    Filter(FilterExpr)
+    Filter(FilterExpr),
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -114,14 +118,40 @@ pub enum FilterExpr {
         pfxop: UnaryOp,
         arg: Box<FilterExpr>,
     },
-    Group { group: Vec<FilterExpr> },
+    Group {
+        group: Vec<FilterExpr>,
+    },
     Relop {
         relop: RelOp,
         lhs: Box<FilterExpr>,
         rhs: Box<FilterExpr>,
     },
-    Variable { id: String },
+    Variable {
+        id: String,
+    },
     Literal(LiteralValue),
+}
+
+pub fn negate_relop(relop: RelOp) -> RelOp {
+    match relop {
+        RelOp::Eq => RelOp::Neq,
+        RelOp::Neq => RelOp::Eq,
+        RelOp::Geq => RelOp::Lt,
+        RelOp::Gt => RelOp::Leq,
+        RelOp::Leq => RelOp::Gt,
+        RelOp::Lt => RelOp::Geq,
+    }
+}
+
+pub fn relop_to_range(relop: &RelOp, version: OpamVersion) -> Range<OpamVersion> {
+    match relop {
+        RelOp::Eq => Range::<OpamVersion>::singleton(version),
+        RelOp::Geq => Range::<OpamVersion>::higher_than(version),
+        RelOp::Gt => Range::<OpamVersion>::strictly_higher_than(version),
+        RelOp::Lt => Range::<OpamVersion>::strictly_lower_than(version),
+        RelOp::Leq => Range::<OpamVersion>::lower_than(version),
+        RelOp::Neq => Range::<OpamVersion>::singleton(version).complement(),
+    }
 }
 
 // not quite CNF, we just move negations to the leaves
@@ -129,63 +159,55 @@ fn normalize_negation(expr: VersionFormula) -> VersionFormula {
     match expr {
         VersionFormula::Version(version) => {
             VersionFormula::Version(HashedRange(version.0.complement()))
-        },
-        VersionFormula::Variable(variable) => {
-            VersionFormula::Not(variable)
         }
-        VersionFormula::Eq(binary) => {
-            VersionFormula::Neq(binary)
-        }
-        VersionFormula::Geq(binary) => {
-            VersionFormula::Lt(binary)
-        }
-        VersionFormula::Gt(binary) => {
-            VersionFormula::Leq(binary)
-        }
-        VersionFormula::Leq(binary) => {
-            VersionFormula::Gt(binary)
-        }
-        VersionFormula::Lt(binary) => {
-            VersionFormula::Geq(binary)
-        }
-        VersionFormula::Neq(binary) => {
-            VersionFormula::Eq(binary)
-        }
+        VersionFormula::Variable(variable) => VersionFormula::Not(variable),
         // De Morgan’s laws
-        VersionFormula::And( Binary { lhs, rhs}) => {
-            VersionFormula::Or( Binary { lhs: Box::new(normalize_negation(*lhs)), rhs: Box::new(normalize_negation(*rhs)) })
-        }
-        VersionFormula::Or( Binary { lhs, rhs}) => {
-            VersionFormula::And( Binary { lhs: Box::new(normalize_negation(*lhs)), rhs: Box::new(normalize_negation(*rhs)) })
-        }
+        VersionFormula::And(Binary { lhs, rhs }) => VersionFormula::Or(Binary {
+            lhs: Box::new(normalize_negation(*lhs)),
+            rhs: Box::new(normalize_negation(*rhs)),
+        }),
+        VersionFormula::Or(Binary { lhs, rhs }) => VersionFormula::And(Binary {
+            lhs: Box::new(normalize_negation(*lhs)),
+            rhs: Box::new(normalize_negation(*rhs)),
+        }),
+        VersionFormula::Comparator { relop, binary } => VersionFormula::Comparator {
+            relop: negate_relop(relop),
+            binary,
+        },
         _ => expr,
     }
 }
 
 fn parse_filter_expr(filter: &FilterExpr) -> VersionFormula {
     match filter {
-        FilterExpr::LogOp { logop, lhs, rhs} => {
+        FilterExpr::LogOp { logop, lhs, rhs } => {
             let left = parse_filter_expr(lhs);
             let right = parse_filter_expr(rhs);
             match logop {
-                LogicalOp::And =>
-                    match (left.clone(), right.clone()) {
-                        (VersionFormula::Version(l), VersionFormula::Version(r)) => VersionFormula::Version(HashedRange(l.0.intersection(&r.0))),
-                        _ => VersionFormula::And( Binary { lhs: Box::new(left), rhs: Box::new(right)} )
-                    },
-                LogicalOp::Or =>
-                    match (left.clone(), right.clone()) {
-                        (VersionFormula::Version(l), VersionFormula::Version(r)) => VersionFormula::Version(HashedRange(l.0.union(&r.0))),
-                        _ => VersionFormula::Or( Binary { lhs: Box::new(left), rhs: Box::new(right)} )
-                    },
-            }
-        },
-        FilterExpr::Unary {pfxop, arg} => {
-            match pfxop {
-                UnaryOp::Not => {
-                    let inner = parse_filter_expr(*&arg);
-                    normalize_negation(inner)
+                LogicalOp::And => match (left.clone(), right.clone()) {
+                    (VersionFormula::Version(l), VersionFormula::Version(r)) => {
+                        VersionFormula::Version(HashedRange(l.0.intersection(&r.0)))
+                    }
+                    _ => VersionFormula::And(Binary {
+                        lhs: Box::new(left),
+                        rhs: Box::new(right),
+                    }),
                 },
+                LogicalOp::Or => match (left.clone(), right.clone()) {
+                    (VersionFormula::Version(l), VersionFormula::Version(r)) => {
+                        VersionFormula::Version(HashedRange(l.0.union(&r.0)))
+                    }
+                    _ => VersionFormula::Or(Binary {
+                        lhs: Box::new(left),
+                        rhs: Box::new(right),
+                    }),
+                },
+            }
+        }
+        FilterExpr::Unary { pfxop, arg } => match pfxop {
+            UnaryOp::Not => {
+                let inner = parse_filter_expr(*&arg);
+                normalize_negation(inner)
             }
         },
         FilterExpr::Group { group } => {
@@ -194,27 +216,25 @@ fn parse_filter_expr(filter: &FilterExpr) -> VersionFormula {
             } else {
                 parse_filter_expr(&group[0])
             }
-        },
+        }
         FilterExpr::Relop { relop, lhs, rhs } => {
             let left = parse_filter_expr(lhs);
             let right = parse_filter_expr(rhs);
-            match relop {
-                RelOp::Eq => VersionFormula::Eq( Binary { lhs: Box::new(left), rhs: Box::new(right)} ),
-                RelOp::Geq => VersionFormula::Geq ( Binary { lhs: Box::new(left), rhs: Box::new(right)} ),
-                RelOp::Gt => VersionFormula::Gt ( Binary { lhs: Box::new(left), rhs: Box::new(right)} ),
-                RelOp::Lt => VersionFormula::Lt ( Binary { lhs: Box::new(left), rhs: Box::new(right)} ),
-                RelOp::Leq => VersionFormula::Leq ( Binary { lhs: Box::new(left), rhs: Box::new(right)} ),
-                RelOp::Neq => VersionFormula::Neq ( Binary { lhs: Box::new(left), rhs: Box::new(right)} ),
+            VersionFormula::Comparator {
+                relop: relop.clone(),
+                binary: Binary {
+                    lhs: Box::new(left),
+                    rhs: Box::new(right),
+                },
             }
         }
-         FilterExpr::Variable { id } => VersionFormula::Variable(id.to_string()),
-         FilterExpr::Literal(lit) =>
-            match lit {
-                LiteralValue::Str(s) => {
-                    let version = s.parse::<OpamVersion>().unwrap();
-                    VersionFormula::Lit(version)
-                }
+        FilterExpr::Variable { id } => VersionFormula::Variable(id.to_string()),
+        FilterExpr::Literal(lit) => match lit {
+            LiteralValue::Str(s) => {
+                let version = s.parse::<OpamVersion>().unwrap();
+                VersionFormula::Lit(version)
             }
+        },
     }
 }
 
@@ -224,35 +244,34 @@ fn parse_version_formula(formula: &OpamVersionFormula) -> VersionFormula {
             let left = parse_version_formula(lhs);
             let right = parse_version_formula(rhs);
             match logop {
-                LogicalOp::And =>
-                    match (left.clone(), right.clone()) {
-                        (VersionFormula::Version(l), VersionFormula::Version(r)) => VersionFormula::Version(HashedRange(l.0.intersection(&r.0))),
-                        _ => VersionFormula::And( Binary { lhs: Box::new(left), rhs: Box::new(right)} )
-                    },
-                LogicalOp::Or =>
-                    match (left.clone(), right.clone()) {
-                        (VersionFormula::Version(l), VersionFormula::Version(r)) => VersionFormula::Version(HashedRange(l.0.union(&r.0))),
-                        _ => VersionFormula::Or( Binary { lhs: Box::new(left), rhs: Box::new(right)} )
-                    },
-            }
-        }
-        OpamVersionFormula::PrefixRelop { prefix_relop, arg } => {
-            match arg {
-                FilterOrVersion::Version(version) => {
-                    let version = version.parse::<OpamVersion>().unwrap();
-                    let range = match prefix_relop {
-                        RelOp::Eq => Range::<OpamVersion>::singleton(version),
-                        RelOp::Geq => Range::<OpamVersion>::higher_than(version),
-                        RelOp::Gt => Range::<OpamVersion>::strictly_higher_than(version),
-                        RelOp::Lt => Range::<OpamVersion>::strictly_lower_than(version),
-                        RelOp::Leq => Range::<OpamVersion>::lower_than(version),
-                        RelOp::Neq => Range::<OpamVersion>::singleton(version).complement(),
-                    };
-                    VersionFormula::Version(HashedRange(range))
+                LogicalOp::And => match (left.clone(), right.clone()) {
+                    (VersionFormula::Version(l), VersionFormula::Version(r)) => {
+                        VersionFormula::Version(HashedRange(l.0.intersection(&r.0)))
+                    }
+                    _ => VersionFormula::And(Binary {
+                        lhs: Box::new(left),
+                        rhs: Box::new(right),
+                    }),
                 },
-                FilterOrVersion::Filter(filter) => parse_filter_expr(filter),
+                LogicalOp::Or => match (left.clone(), right.clone()) {
+                    (VersionFormula::Version(l), VersionFormula::Version(r)) => {
+                        VersionFormula::Version(HashedRange(l.0.union(&r.0)))
+                    }
+                    _ => VersionFormula::Or(Binary {
+                        lhs: Box::new(left),
+                        rhs: Box::new(right),
+                    }),
+                },
             }
         }
+        OpamVersionFormula::PrefixRelop { prefix_relop, arg } => match arg {
+            FilterOrVersion::Version(version) => {
+                let version = version.parse::<OpamVersion>().unwrap();
+                let range = relop_to_range(prefix_relop, version);
+                VersionFormula::Version(HashedRange(range))
+            }
+            FilterOrVersion::Filter(filter) => parse_filter_expr(filter),
+        },
         OpamVersionFormula::Group { group } => {
             if group.is_empty() {
                 panic!("Empty group");
@@ -260,14 +279,12 @@ fn parse_version_formula(formula: &OpamVersionFormula) -> VersionFormula {
                 parse_version_formula(&group[0])
             }
         }
-        OpamVersionFormula::PrefixOperator { pfxop, arg } => {
-            match pfxop {
-                UnaryOp::Not => {
-                    let inner = parse_version_formula(*&arg);
-                    normalize_negation(inner)
-                },
+        OpamVersionFormula::PrefixOperator { pfxop, arg } => match pfxop {
+            UnaryOp::Not => {
+                let inner = parse_version_formula(*&arg);
+                normalize_negation(inner)
             }
-        }
+        },
         OpamVersionFormula::Filter(filter) => parse_filter_expr(filter),
     }
 }
@@ -284,7 +301,7 @@ pub fn parse_package_formula(formula: &OpamPackageFormula) -> PackageFormula {
                 name: name.clone(),
                 formula,
             }
-        },
+        }
         // For a binary formula, recursively convert the left- and right-hand sides.
         OpamPackageFormula::Binary { logop, lhs, rhs } => {
             let lhs_conv = parse_package_formula(lhs);
@@ -297,19 +314,17 @@ pub fn parse_package_formula(formula: &OpamPackageFormula) -> PackageFormula {
                 LogicalOp::And => PackageFormula::And(binary),
                 LogicalOp::Or => PackageFormula::Or(binary),
             }
-        },
+        }
         OpamPackageFormula::Group { group } => {
             if group.is_empty() {
                 panic!("Empty group");
             } else {
                 parse_package_formula(&group[0])
             }
-        },
-        OpamPackageFormula::Plain(s) => {
-            PackageFormula::Base {
-                name: s.clone(),
-                formula: VersionFormula::Version(HashedRange(Range::full())),
-            }
+        }
+        OpamPackageFormula::Plain(s) => PackageFormula::Base {
+            name: s.clone(),
+            formula: VersionFormula::Version(HashedRange(Range::full())),
         },
     }
 }
@@ -319,7 +334,10 @@ pub fn parse_package_formula(formula: &OpamPackageFormula) -> PackageFormula {
 ///
 /// The repository is assumed to have the following structure:
 ///   repo_path/package-name/package-name.version/opam.json
-pub fn available_versions_from_repo(repo_path: &str, package: &str) -> Result<Vec<OpamVersion>, Box<dyn Error>> {
+pub fn available_versions_from_repo(
+    repo_path: &str,
+    package: &str,
+) -> Result<Vec<OpamVersion>, Box<dyn Error>> {
     // Construct the package directory: repo_path/package
     let pkg_dir = Path::new(repo_path).join(package);
     if !pkg_dir.exists() {
@@ -382,8 +400,14 @@ pub fn parse_dependencies_for_package_version(
         .map_err(|e| format!("Failed to read {}: {}", opam_file.display(), e))?;
 
     // Parse the JSON into an OpamJson struct.
-    let opam_data: OpamJson = serde_json::from_str(&content)
-        .map_err(|e| format!("Error parsing {}: {}\nContent:\n{}", opam_file.display(), e, content))?;
+    let opam_data: OpamJson = serde_json::from_str(&content).map_err(|e| {
+        format!(
+            "Error parsing {}: {}\nContent:\n{}",
+            opam_file.display(),
+            e,
+            content
+        )
+    })?;
 
     // Convert the dependency formulas, if any.
     let dependencies = get_depends(opam_data.depends)

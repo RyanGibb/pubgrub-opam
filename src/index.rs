@@ -4,7 +4,7 @@ use std::cell::Cell;
 use std::hash::{Hash, Hasher};
 
 use crate::opam_version::OpamVersion;
-use crate::parse::available_versions_from_repo;
+use crate::parse::{available_versions_from_repo, RelOp};
 
 pub type PackageName = String;
 
@@ -41,14 +41,12 @@ pub enum VersionFormula {
     Lit(OpamVersion),
     Variable(String),
     Not(String),
-    Eq(Binary<VersionFormula>),
-    Neq(Binary<VersionFormula>),
-    Geq(Binary<VersionFormula>),
-    Gt(Binary<VersionFormula>),
-    Leq(Binary<VersionFormula>),
-    Lt(Binary<VersionFormula>),
-    Or(Binary<VersionFormula>),
     And(Binary<VersionFormula>),
+    Or(Binary<VersionFormula>),
+    Comparator {
+        relop: RelOp,
+        binary: Binary<VersionFormula>
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -61,11 +59,27 @@ pub enum PackageFormula {
     },
 }
 
+impl Display for RelOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RelOp::Eq => write!(f, "="),
+            RelOp::Geq => write!(f, ">="),
+            RelOp::Gt => write!(f, ">"),
+            RelOp::Leq => write!(f, "<="),
+            RelOp::Lt => write!(f, "<"),
+            RelOp::Neq => write!(f, "!="),
+        }
+    }
+}
+
 impl Display for VersionFormula {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             VersionFormula::Variable(variable) => {
                 write!(f, "{}", variable)
+            }
+            VersionFormula::Not(variable) => {
+                write!(f, "!{}", variable)
             }
             VersionFormula::Lit(literal) => {
                 write!(f, "{}", literal)
@@ -73,32 +87,15 @@ impl Display for VersionFormula {
             VersionFormula::Version(version) => {
                 write!(f, "= {}", version)
             }
-            VersionFormula::Eq(binary) => {
-                write!(f, "({} = {})", binary.lhs, binary.rhs)
-            }
-            VersionFormula::Geq(binary) => {
-                write!(f, "({} >= {})", binary.lhs, binary.rhs)
-            }
-            VersionFormula::Gt(binary) => {
-                write!(f, "({} > {})", binary.lhs, binary.rhs)
-            }
-            VersionFormula::Leq(binary) => {
-                write!(f, "({} <= {})", binary.lhs, binary.rhs)
-            }
-            VersionFormula::Lt(binary) => {
-                write!(f, "({} < {})", binary.lhs, binary.rhs)
-            }
-            VersionFormula::Neq(binary) => {
-                write!(f, "({} != {})", binary.lhs, binary.rhs)
-            }
             VersionFormula::And(binary) => {
                 write!(f, "({} & {})", binary.lhs, binary.rhs)
             }
             VersionFormula::Or(binary) => {
                 write!(f, "({} | {})", binary.lhs, binary.rhs)
             }
-            VersionFormula::Not(variable) => {
-                write!(f, "!{}", variable)
+            VersionFormula::Comparator { relop, binary } => {
+                // infix notation
+                write!(f, "({} {} {})", binary.lhs, relop, binary.rhs)
             }
         }
     }
