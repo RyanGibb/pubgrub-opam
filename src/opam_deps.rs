@@ -100,7 +100,7 @@ impl Index {
                 formula: _,
             } => vec![LHS_VERSION.clone(), RHS_VERSION.clone()],
         };
-        if self.debug.get() {
+        if self.version_debug.get() {
             print!("versions of {}", package);
             if versions.len() > 0 {
                 print!(": ")

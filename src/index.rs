@@ -11,6 +11,7 @@ pub type PackageName = String;
 pub struct Index {
     pub repo: String,
     pub debug: Cell<bool>,
+    pub version_debug: Cell<bool>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -129,6 +130,7 @@ impl Index {
         Self {
             repo,
             debug: false.into(),
+            version_debug: false.into(),
         }
     }
 
@@ -138,5 +140,9 @@ impl Index {
 
     pub fn set_debug(&self, flag: bool) {
         self.debug.set(flag);
+    }
+
+    pub fn set_version_debug(&self, flag: bool) {
+        self.version_debug.set(flag);
     }
 }
