@@ -388,9 +388,15 @@ mod tests {
 
     #[test]
     fn test_opam_repository_ocaml_variants() -> Result<(), Box<dyn Error>> {
+        let root = Package::Root(vec![
+            (Package::Base("ocaml-variants".to_string()), Range::singleton(OpamVersion("5.3.1+trunk".to_string()))),
+            (Package::Var("arch".to_string()), Range::singleton(OpamVersion("arm64".to_string()))),
+            (Package::Var("os".to_string()), Range::singleton(OpamVersion("macos".to_string()))),
+            (Package::Var("post".to_string()), Range::singleton(TRUE_VERSION.clone())),
+        ]);
         solve_repo(
-            Package::from_str("ocaml-variants").unwrap(),
-            "5.3.1+trunk".parse::<OpamVersion>().unwrap(),
+            root,
+            OpamVersion("".to_string()),
             "./opam-repository/packages",
         )?;
         Ok(())

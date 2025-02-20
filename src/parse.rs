@@ -53,8 +53,7 @@ pub enum OpamPackageFormula {
 #[serde(rename_all = "lowercase")]
 pub enum UnaryOp {
     Not,
-    // TODO implement logic for this is it's actually used anywhere
-    // Defined,
+    Defined,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Hash)]
@@ -210,6 +209,18 @@ fn parse_filter_expr(filter: &FilterExpr) -> VersionFormula {
                 let inner = parse_filter_expr(*&arg);
                 normalize_negation(inner)
             }
+            UnaryOp::Defined => match parse_filter_expr(*&arg) {
+                VersionFormula::Variable(id) => VersionFormula::Comparator {
+                    relop: RelOp::Neq,
+                    binary: Binary {
+                        lhs: Box::new(VersionFormula::Variable(id)),
+                        rhs: Box::new(VersionFormula::Version(HashedRange(Range::singleton(
+                            OpamVersion("".to_string()),
+                        )))),
+                    },
+                },
+                _ => panic!("Defined must be for a variable"),
+            },
         },
         FilterExpr::Group { group } => {
             if group.is_empty() {
@@ -285,6 +296,18 @@ fn parse_version_formula(formula: &OpamVersionFormula) -> VersionFormula {
                 let inner = parse_version_formula(*&arg);
                 normalize_negation(inner)
             }
+            UnaryOp::Defined => match parse_version_formula(*&arg) {
+                VersionFormula::Variable(id) => VersionFormula::Comparator {
+                    relop: RelOp::Neq,
+                    binary: Binary {
+                        lhs: Box::new(VersionFormula::Variable(id)),
+                        rhs: Box::new(VersionFormula::Version(HashedRange(Range::singleton(
+                            OpamVersion("".to_string()),
+                        )))),
+                    },
+                },
+                _ => panic!("Defined must be for a variable"),
+            },
         },
         OpamVersionFormula::Filter(filter) => parse_filter_expr(filter),
     }

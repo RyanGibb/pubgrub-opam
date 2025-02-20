@@ -61,7 +61,8 @@ static LHS_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("lhs".t
 static RHS_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("rhs".to_string()));
 
 pub static TRUE_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("true".to_string()));
-pub static FALSE_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("false".to_string()));
+pub static FALSE_VERSION: LazyLock<OpamVersion> =
+    LazyLock::new(|| OpamVersion("false".to_string()));
 
 impl Index {
     pub fn list_versions(&self, package: &Package) -> impl Iterator<Item = OpamVersion> + '_ {
@@ -69,9 +70,13 @@ impl Index {
             Package::Root(_) => vec![OpamVersion("".to_string())],
             Package::Base(pkg) => self.available_versions(pkg),
             Package::Lor { lhs: _, rhs: _ } => vec![LHS_VERSION.clone(), RHS_VERSION.clone()],
-            Package::Var(var) => match VARIABLE_CACHE.lock().unwrap().get(var) {
-                Some(m) => m.iter().cloned().collect(),
-                None => vec![FALSE_VERSION.clone(), TRUE_VERSION.clone()],
+            Package::Var(var) => match var.as_str() {
+                "os" => vec![OpamVersion("macos".to_string())],
+                "arch" => vec![OpamVersion("arm64".to_string())],
+                _ => match VARIABLE_CACHE.lock().unwrap().get(var) {
+                    Some(m) => m.iter().cloned().collect(),
+                    None => vec![FALSE_VERSION.clone(), TRUE_VERSION.clone()],
+                },
             },
             Package::Formula {
                 name: _,
@@ -306,8 +311,7 @@ fn merge_constraints(
         left.entry(pkg.clone())
             .and_modify(|existing| {
                 match pkg {
-                    Package::Var(_) => *existing = existing.intersection(&range),
-                    _ => *existing = existing.union(&range),
+                    _ => *existing = existing.intersection(&range),
                 };
             })
             .or_insert(range);

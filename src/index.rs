@@ -1,5 +1,5 @@
-use pubgrub::Range;
 use core::fmt::Display;
+use pubgrub::Range;
 use std::cell::Cell;
 use std::hash::{Hash, Hasher};
 
@@ -45,8 +45,8 @@ pub enum VersionFormula {
     Or(Binary<VersionFormula>),
     Comparator {
         relop: RelOp,
-        binary: Binary<VersionFormula>
-    }
+        binary: Binary<VersionFormula>,
+    },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -121,7 +121,7 @@ impl Index {
     pub fn new(repo: String) -> Self {
         Self {
             repo,
-            debug : false.into()
+            debug: false.into(),
         }
     }
 
