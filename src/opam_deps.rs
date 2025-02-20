@@ -10,6 +10,7 @@ use std::sync::{LazyLock, Mutex};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Package {
+    Root(Vec<(Package, Range<OpamVersion>)>),
     Base(String),
     Lor {
         lhs: Box<PackageFormula>,
@@ -43,6 +44,7 @@ impl FromStr for Package {
 impl Display for Package {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Package::Root(_) => write!(f, "Root"),
             Package::Base(pkg) => write!(f, "{}", pkg),
             Package::Lor { lhs, rhs } => write!(f, "{} | {}", lhs, rhs),
             Package::Formula { name, formula } => write!(f, "{} {{{}}}", name, formula),
@@ -58,12 +60,13 @@ impl Display for Package {
 static LHS_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("lhs".to_string()));
 static RHS_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("rhs".to_string()));
 
-static TRUE_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("true".to_string()));
-static FALSE_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("false".to_string()));
+pub static TRUE_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("true".to_string()));
+pub static FALSE_VERSION: LazyLock<OpamVersion> = LazyLock::new(|| OpamVersion("false".to_string()));
 
 impl Index {
     pub fn list_versions(&self, package: &Package) -> impl Iterator<Item = OpamVersion> + '_ {
         let versions = match package {
+            Package::Root(_) => vec![OpamVersion("".to_string())],
             Package::Base(pkg) => self.available_versions(pkg),
             Package::Lor { lhs: _, rhs: _ } => vec![LHS_VERSION.clone(), RHS_VERSION.clone()],
             Package::Var(var) => match VARIABLE_CACHE.lock().unwrap().get(var) {
@@ -137,6 +140,10 @@ impl DependencyProvider for Index {
         version: &OpamVersion,
     ) -> Result<Dependencies<Self::P, Self::VS, Self::M>, Self::Err> {
         match package {
+            Package::Root(deps) => {
+                let deps: Map<Package, Range<OpamVersion>> = deps.into_iter().cloned().collect();
+                Ok(Dependencies::Available(deps))
+            }
             Package::Base(pkg) => {
                 let formulas = parse_dependencies_for_package_version(
                     self.repo.as_str(),
