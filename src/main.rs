@@ -1,4 +1,4 @@
-use pubgrub::{DefaultStringReporter, Dependencies, DependencyProvider, PubGrubError, Reporter, SelectedDependencies, Range};
+use pubgrub::{DefaultStringReporter, Dependencies, DependencyProvider, PubGrubError, Reporter, SelectedDependencies};
 use pubgrub_opam::index::Index;
 use pubgrub_opam::opam_deps::Package;
 use pubgrub_opam::opam_version::OpamVersion;
@@ -15,7 +15,7 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<Selected
             Ok(sol) => Ok(sol),
             Err(PubGrubError::NoSolution(mut derivation_tree)) => {
                 derivation_tree.collapse_no_versions();
-                eprintln!("{}", DefaultStringReporter::report(&derivation_tree));
+                eprintln!("\n\n\n{}", DefaultStringReporter::report(&derivation_tree));
                 Err(PubGrubError::<Index>::NoSolution(derivation_tree))
             }
             Err(err) => panic!("{:?}", err),
@@ -52,6 +52,9 @@ fn solve_repo(pkg: Package, version: OpamVersion, repo: &str) -> Result<Selected
                             dependents.insert((format!("{}", dep_package), solved_version));
                         }
                         Package::Root(_deps) => {
+                            dependents.extend(get_resolved_deps(&index, sol, &dep_package, solved_version));
+                        }
+                        Package::ConflictClass(_) => {
                             dependents.extend(get_resolved_deps(&index, sol, &dep_package, solved_version));
                         }
                     };
@@ -123,6 +126,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
 
+    use pubgrub::Range;
     use pubgrub_opam::opam_deps::{FALSE_VERSION, TRUE_VERSION};
 
     use super::*;

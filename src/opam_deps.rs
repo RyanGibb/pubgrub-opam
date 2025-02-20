@@ -12,6 +12,7 @@ use std::sync::{LazyLock, Mutex};
 pub enum Package {
     Root(Vec<(Package, Range<OpamVersion>)>),
     Base(String),
+    ConflictClass(String),
     Lor {
         lhs: Box<PackageFormula>,
         rhs: Box<PackageFormula>,
@@ -30,6 +31,9 @@ pub enum Package {
 static VARIABLE_CACHE: LazyLock<Mutex<HashMap<String, HashSet<OpamVersion>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+static CONFLICT_CLASS_CACHE: LazyLock<Mutex<HashMap<String, HashSet<OpamVersion>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
 impl FromStr for Package {
     type Err = String;
     fn from_str(pkg: &str) -> Result<Self, Self::Err> {
@@ -46,6 +50,7 @@ impl Display for Package {
         match self {
             Package::Root(_) => write!(f, "Root"),
             Package::Base(pkg) => write!(f, "{}", pkg),
+            Package::ConflictClass(pkg) => write!(f, "Conflict class {}", pkg),
             Package::Lor { lhs, rhs } => write!(f, "{} | {}", lhs, rhs),
             Package::Formula { name, formula } => write!(f, "{} {{{}}}", name, formula),
             Package::Proxy { name, formula } => match name {
@@ -69,6 +74,14 @@ impl Index {
         let versions = match package {
             Package::Root(_) => vec![OpamVersion("".to_string())],
             Package::Base(pkg) => self.available_versions(pkg),
+            Package::ConflictClass(pkg) => CONFLICT_CLASS_CACHE
+                .lock()
+                .unwrap()
+                .get(pkg)
+                .unwrap()
+                .iter()
+                .cloned()
+                .collect(),
             Package::Lor { lhs: _, rhs: _ } => vec![LHS_VERSION.clone(), RHS_VERSION.clone()],
             Package::Var(var) => match var.as_str() {
                 "os" => vec![OpamVersion("macos".to_string())],
@@ -174,6 +187,7 @@ impl DependencyProvider for Index {
                 }
                 Ok(Dependencies::Available(deps))
             }
+            Package::ConflictClass(_) => Ok(Dependencies::Available(Map::default())),
             Package::Lor { lhs, rhs } => {
                 let deps = match version {
                     OpamVersion(ver) => match ver.as_str() {
@@ -282,6 +296,20 @@ fn from_formula(formula: &PackageFormula) -> DependencyConstraints<Package, Rang
                     Range::full(),
                 ),
             };
+            map
+        }
+        PackageFormula::ConflictClass { name, package } => {
+            let mut map = Map::default();
+            map.insert(
+                Package::ConflictClass(name.to_string()),
+                Range::<OpamVersion>::singleton(OpamVersion(package.to_string())),
+            );
+            CONFLICT_CLASS_CACHE
+                .lock()
+                .unwrap()
+                .entry(name.to_string())
+                .or_insert_with(HashSet::new)
+                .insert(OpamVersion(package.to_string()));
             map
         }
         PackageFormula::Or(Binary { lhs, rhs }) => {

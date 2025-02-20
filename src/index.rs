@@ -57,6 +57,10 @@ pub enum PackageFormula {
         name: PackageName,
         formula: VersionFormula,
     },
+    ConflictClass {
+        name: PackageName,
+        package: PackageName,
+    },
 }
 
 impl Display for RelOp {
@@ -106,6 +110,9 @@ impl Display for PackageFormula {
         match self {
             PackageFormula::Base { name, formula } => {
                 write!(f, "({} {{{}}})", name, formula)
+            }
+            PackageFormula::ConflictClass { name, package } => {
+                write!(f, "(Conflict class ({}, {}) )", name, package)
             }
             PackageFormula::And(binary) => {
                 write!(f, "({} & {})", binary.lhs, binary.rhs)

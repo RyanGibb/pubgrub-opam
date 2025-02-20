@@ -14,6 +14,8 @@ pub struct OpamJson {
     pub name: Option<String>,
     pub version: Option<String>,
     pub depends: Option<DependsField>,
+    #[serde(rename = "conflict-class")]
+    pub conflict_class: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -434,9 +436,20 @@ pub fn parse_dependencies_for_package_version(
     })?;
 
     // Convert the dependency formulas, if any.
-    let dependencies = get_depends(opam_data.depends)
+    let mut dependencies: Vec<PackageFormula> = get_depends(opam_data.depends)
         .into_iter()
         .map(|pf| parse_package_formula(&pf))
         .collect();
+
+    match opam_data.conflict_class {
+        Some(conflict_class) => {
+            dependencies.push(PackageFormula::ConflictClass  {
+                name: conflict_class.clone(),
+                package: package.to_string(),
+            });
+        }
+        _ => ()
+    }
+
     Ok(dependencies)
 }
