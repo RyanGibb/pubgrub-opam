@@ -158,10 +158,7 @@ impl DependencyProvider for Index {
         version: &OpamVersion,
     ) -> Result<Dependencies<Self::P, Self::VS, Self::M>, Self::Err> {
         match package {
-            Package::Root(deps) => {
-                let deps: Map<Package, Range<OpamVersion>> = deps.into_iter().cloned().collect();
-                Ok(Dependencies::Available(deps))
-            }
+            Package::Root(deps) => Ok(Dependencies::Available(deps.into_iter().cloned().collect())),
             Package::Base(pkg) => {
                 let formulas = parse_dependencies_for_package_version(
                     self.repo.as_str(),
